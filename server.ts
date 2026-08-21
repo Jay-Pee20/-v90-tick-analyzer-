@@ -562,12 +562,12 @@ function renderFrequency(frequencyData){
   const max = Math.max(...frequencyData.frequencies.map(i => i.count), 1);
   root.innerHTML = frequencyData.frequencies.map(item => {
     const width = (item.count / max) * 100;
-    return `<div class="digit-card">
-      <div class="digit">${item.digit}</div>
-      <div class="count">${item.count}</div>
-      <div class="percent">${item.percentage}%</div>
-      <div class="bar-wrap"><div class="bar" style="width:${width}%"></div></div>
-    </div>`;
+    return \`<div class="digit-card">
+      <div class="digit">\${item.digit}</div>
+      <div class="count">\${item.count}</div>
+      <div class="percent">\${item.percentage}%</div>
+      <div class="bar-wrap"><div class="bar" style="width:\${width}%"></div></div>
+    </div>\`;
   }).join("");
 }
 
@@ -583,9 +583,9 @@ function renderPrediction(prediction){
   }
   digit.textContent = prediction.prediction;
   confidence.textContent = prediction.confidence + "% weighted score";
-  ranked.innerHTML = prediction.rankedDigits.slice(0, 5).map((item, index) => `
-    <div class="rank"><span>#${index + 1} • Digit ${item.digit}</span><strong>${item.score}%</strong></div>
-  `).join("");
+  ranked.innerHTML = prediction.rankedDigits.slice(0, 5).map((item, index) => \`
+    <div class="rank"><span>#\${index + 1} • Digit \${item.digit}</span><strong>\${item.score}%</strong></div>
+  \`).join("");
 }
 
 function renderWindows(windows){
@@ -593,13 +593,13 @@ function renderWindows(windows){
   root.innerHTML = windows.map(w => {
     const hot = w.hottest.map(i => i.digit).join(", ");
     const cold = w.coldest.map(i => i.digit).join(", ");
-    return `<div class="window">
-      <div class="window-size">Last ${w.window} ticks</div>
+    return \`<div class="window">
+      <div class="window-size">Last \${w.window} ticks</div>
       <div class="hot-cold">
-        <span class="badge hot">Hot: ${hot || "—"}</span>
-        <span class="badge cold">Cold: ${cold || "—"}</span>
+        <span class="badge hot">Hot: \${hot || "—"}</span>
+        <span class="badge cold">Cold: \${cold || "—"}</span>
       </div>
-    </div>`;
+    </div>\`;
   }).join("");
 }
 
@@ -607,11 +607,11 @@ function renderTicks(ticks){
   const root = document.getElementById("recentTicks");
   root.innerHTML = ticks.map(t => {
     const time = new Date(t.epoch * 1000).toLocaleTimeString();
-    return `<div class="tick-row">
-      <div>${escapeHtml(Number(t.quote).toFixed(2))}</div>
-      <div class="small">${escapeHtml(time)}</div>
-      <div class="tick-digit">${escapeHtml(t.digit)}</div>
-    </div>`;
+    return \`<div class="tick-row">
+      <div>\${escapeHtml(Number(t.quote).toFixed(2))}</div>
+      <div class="small">\${escapeHtml(time)}</div>
+      <div class="tick-digit">\${escapeHtml(t.digit)}</div>
+    </div>\`;
   }).join("");
 }
 
