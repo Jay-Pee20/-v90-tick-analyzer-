@@ -858,6 +858,68 @@ Deno.serve(async (request) => {
       },
     });
   }
+  // DIAGNOSTIC: queries Deriv's active_symbols list to find the exact
+  // symbol string(s) matching "90", and whether live tick streaming
+  // is flagged as available for them. Added to investigate why
+  // GET /stream returns "Symbol 1HZ90V is invalid." even though
+  // /history and /test-deriv work fine with the same SYMBOL constant
+  // for historical requests.
+  if (request.method === "GET" && url.pathname === "/symbol-check") {
+    try {
+      const ws = await connectDeriv();
+      const result = await new Promise<Response>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          try { ws.close(); } catch { /* ignore */ }
+          reject(new Error("active_symbols request timed out."));
+        }, CONNECTION_TIMEOUT_MS);
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(String(event.data));
+            if (data.error) {
+              clearTimeout(timeout);
+              try { ws.close(); } catch { /* ignore */ }
+              reject(new Error(`Deriv API error: ${data.error?.message || data.error?.code || "unknown"}`));
+              return;
+            }
+            if (data.msg_type !== "active_symbols" || !Array.isArray(data.active_symbols)) return;
+
+            const matches = data.active_symbols.filter((s: any) =>
+              String(s.symbol ?? "").includes("90") || String(s.display_name ?? "").includes("90")
+            );
+
+            clearTimeout(timeout);
+            try { ws.close(); } catch { /* ignore */ }
+            resolve(json({
+              configuredSymbol: SYMBOL,
+              totalActiveSymbols: data.active_symbols.length,
+              matches,
+            }));
+          } catch (error) {
+            clearTimeout(timeout);
+            try { ws.close(); } catch { /* ignore */ }
+            reject(error instanceof Error ? error : new Error("Unable to parse active_symbols response."));
+          }
+        };
+
+        ws.onerror = () => {
+          clearTimeout(timeout);
+          reject(new Error("Deriv WebSocket error while receiving active_symbols."));
+        };
+
+        try {
+          ws.send(JSON.stringify({ active_symbols: "full", product_type: "basic", req_id: 9001 }));
+        } catch (error) {
+          clearTimeout(timeout);
+          reject(error instanceof Error ? error : new Error("Unable to send active_symbols request."));
+        }
+      });
+      return result;
+    } catch (error) {
+      return errorResponse(error instanceof Error ? error.message : "Symbol check failed.", 502);
+    }
+  }
+
 
   if (request.method === "GET" && url.pathname === "/") {
     return json({
