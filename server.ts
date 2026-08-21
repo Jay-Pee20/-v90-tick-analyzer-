@@ -908,7 +908,8 @@ Deno.serve(async (request) => {
         };
 
         try {
-          ws.send(JSON.stringify({ active_symbols: "full", product_type: "basic", req_id: 9001 }));
+                    ws.send(JSON.stringify({ active_symbols: "full", req_id: 9001 }));
+
         } catch (error) {
           clearTimeout(timeout);
           reject(error instanceof Error ? error : new Error("Unable to send active_symbols request."));
