@@ -3,8 +3,6 @@ const PORT = Number(Deno.env.get("PORT") || 8000);
 const DERIV_WS =
   "wss://ws.binaryws.com/websockets/v3?app_id=1089";
 
-const SYMBOL = "1HZ90V";
-
 const MAX_TICKS = 1000;
 
 type Tick = {
@@ -15,6 +13,14 @@ type Tick = {
 
 type Client = {
   socket: WebSocket;
+};
+
+type DerivSymbol = {
+  symbol?: string;
+  display_name?: string;
+  market?: string;
+  submarket?: string;
+  pip?: number;
 };
 
 let derivSocket: WebSocket | null = null;
@@ -28,35 +34,79 @@ let connectionState = "connecting";
 let lastError: string | null = null;
 let lastTickAt: number | null = null;
 
-function getDigit(quote: number): number {
-  const text = String(quote);
+let SYMBOL = "";
+let SYMBOL_NAME = "Volatility 90 (1s)";
+let PIP_SIZE = 2;
 
-  const digits = text.replace(/\D/g, "");
+let discoveringSymbol = false;
 
-  if (!digits.length) return 0;
+function getDigit(
+  quote: number,
+  pipSize = PIP_SIZE,
+): number {
+  if (!Number.isFinite(quote)) {
+    return 0;
+  }
 
-  return Number(digits[digits.length - 1]);
+  const decimals = Math.max(
+    0,
+    Math.min(10, pipSize),
+  );
+
+  const fixed = quote.toFixed(decimals);
+
+  const parts = fixed.split(".");
+
+  if (parts.length < 2) {
+    return 0;
+  }
+
+  const decimalPart = parts[1];
+
+  if (!decimalPart.length) {
+    return 0;
+  }
+
+  return Number(
+    decimalPart[decimalPart.length - 1],
+  );
 }
 
 function frequencyForWindow(size: number) {
   const slice = ticks.slice(-size);
 
-  const counts = Array.from({ length: 10 }, () => 0);
+  const counts = Array.from(
+    { length: 10 },
+    () => 0,
+  );
 
   for (const tick of slice) {
-    counts[tick.digit]++;
+    if (
+      Number.isInteger(tick.digit) &&
+      tick.digit >= 0 &&
+      tick.digit <= 9
+    ) {
+      counts[tick.digit]++;
+    }
   }
 
   const total = slice.length;
 
-  const frequencies = counts.map((count, digit) => ({
-    digit,
-    count,
-    percentage:
-      total > 0
-        ? Number(((count / total) * 100).toFixed(2))
-        : 0,
-  }));
+  const frequencies = counts.map(
+    (count, digit) => ({
+      digit,
+      count,
+      percentage:
+        total > 0
+          ? Number(
+              (
+                (count / total) *
+                100
+              ).toFixed(2),
+            )
+          : 0,
+    }),
+  );
 
   return {
     size,
@@ -66,31 +116,45 @@ function frequencyForWindow(size: number) {
 }
 
 function analyzeWindow(size: number) {
-  const data = frequencyForWindow(size);
+  const data =
+    frequencyForWindow(size);
 
-  const sorted = [...data.frequencies].sort(
-    (a, b) => b.count - a.count,
-  );
+  const sorted =
+    [...data.frequencies].sort(
+      (a, b) => b.count - a.count,
+    );
 
-  const hottest = sorted.slice(0, 3);
-  const coldest = [...sorted]
-    .reverse()
-    .slice(0, 3);
+  const hottest =
+    sorted.slice(0, 3);
+
+  const coldest =
+    [...sorted]
+      .reverse()
+      .slice(0, 3);
 
   return {
     window: size,
     total: data.total,
     hottest,
     coldest,
-    frequencies: data.frequencies,
+    frequencies:
+      data.frequencies,
   };
 }
 
 function getAnalysis() {
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt:
+      new Date().toISOString(),
+
     symbol: SYMBOL,
-    totalTicks: ticks.length,
+
+    symbolName:
+      SYMBOL_NAME,
+
+    totalTicks:
+      ticks.length,
+
     windows: [
       analyzeWindow(5),
       analyzeWindow(10),
@@ -105,36 +169,82 @@ function getAnalysis() {
 
 function getPrediction() {
   const windows = [
-    { size: 5, weight: 0.05 },
-    { size: 10, weight: 0.08 },
-    { size: 15, weight: 0.10 },
-    { size: 20, weight: 0.12 },
-    { size: 50, weight: 0.20 },
-    { size: 100, weight: 0.20 },
-    { size: 500, weight: 0.25 },
+    {
+      size: 5,
+      weight: 0.05,
+    },
+    {
+      size: 10,
+      weight: 0.08,
+    },
+    {
+      size: 15,
+      weight: 0.10,
+    },
+    {
+      size: 20,
+      weight: 0.12,
+    },
+    {
+      size: 50,
+      weight: 0.20,
+    },
+    {
+      size: 100,
+      weight: 0.20,
+    },
+    {
+      size: 500,
+      weight: 0.25,
+    },
   ];
 
-  const scores = Array.from({ length: 10 }, () => 0);
+  const scores =
+    Array.from(
+      { length: 10 },
+      () => 0,
+    );
 
   let availableWeight = 0;
 
   for (const item of windows) {
-    const recent = ticks.slice(-item.size);
+    const recent =
+      ticks.slice(-item.size);
 
-    if (!recent.length) continue;
-
-    availableWeight += item.weight;
-
-    const counts = Array.from({ length: 10 }, () => 0);
-
-    for (const tick of recent) {
-      counts[tick.digit]++;
+    if (!recent.length) {
+      continue;
     }
 
-    for (let digit = 0; digit < 10; digit++) {
-      const frequency = counts[digit] / recent.length;
+    availableWeight +=
+      item.weight;
 
-      scores[digit] += frequency * item.weight;
+    const counts =
+      Array.from(
+        { length: 10 },
+        () => 0,
+      );
+
+    for (const tick of recent) {
+      if (
+        tick.digit >= 0 &&
+        tick.digit <= 9
+      ) {
+        counts[tick.digit]++;
+      }
+    }
+
+    for (
+      let digit = 0;
+      digit < 10;
+      digit++
+    ) {
+      const frequency =
+        counts[digit] /
+        recent.length;
+
+      scores[digit] +=
+        frequency *
+        item.weight;
     }
   }
 
@@ -144,71 +254,134 @@ function getPrediction() {
       prediction: null,
       confidence: 0,
       rankedDigits: [],
-      generatedAt: new Date().toISOString(),
+      generatedAt:
+        new Date().toISOString(),
     };
   }
 
-  const rankedDigits = scores
-    .map((score, digit) => ({
-      digit,
-      score: Number(
-        ((score / availableWeight) * 100).toFixed(2),
+  const rankedDigits =
+    scores
+      .map(
+        (score, digit) => ({
+          digit,
+          score: Number(
+            (
+              (score /
+                availableWeight) *
+              100
+            ).toFixed(2),
+          ),
+        }),
+      )
+      .sort(
+        (a, b) =>
+          b.score - a.score,
+      );
+
+  const top =
+    rankedDigits[0];
+
+  const second =
+    rankedDigits[1];
+
+  const confidence =
+    Math.min(
+      100,
+      Number(
+        (
+          50 +
+          (top.score -
+            second.score) *
+            5
+        ).toFixed(2),
       ),
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  const top = rankedDigits[0];
-  const second = rankedDigits[1];
-
-  const confidence = Math.min(
-    100,
-    Number(
-      (
-        50 +
-        (top.score - second.score) * 5
-      ).toFixed(2),
-    ),
-  );
+    );
 
   return {
-    available: ticks.length > 0,
-    prediction: top?.digit ?? null,
+    available:
+      ticks.length > 0,
+
+    prediction:
+      top?.digit ?? null,
+
     confidence,
+
     rankedDigits,
-    generatedAt: new Date().toISOString(),
+
+    generatedAt:
+      new Date().toISOString(),
+
     note:
       "Research-only statistical output. It does not guarantee future market ticks.",
   };
 }
 
 function dashboardState() {
-  const latest = ticks[ticks.length - 1] ?? null;
+  const latest =
+    ticks[
+      ticks.length - 1
+    ] ?? null;
 
   return {
-    name: "V90 Matches Research Analyzer",
-    status: connectionState,
-    symbol: SYMBOL,
-    market: "Volatility 90 (1s)",
-    latestTick: latest,
-    totalTicks: ticks.length,
+    name:
+      "V90 Tick Analyzer",
+
+    status:
+      connectionState,
+
+    symbol:
+      SYMBOL,
+
+    market:
+      SYMBOL_NAME,
+
+    latestTick:
+      latest,
+
+    totalTicks:
+      ticks.length,
+
     lastTickAt,
+
     lastError,
-    frequencies: frequencyForWindow(100),
-    analysis: getAnalysis(),
-    prediction: getPrediction(),
-    recentTicks: ticks.slice(-30).reverse(),
+
+    frequencies:
+      frequencyForWindow(100),
+
+    analysis:
+      getAnalysis(),
+
+    prediction:
+      getPrediction(),
+
+    recentTicks:
+      ticks
+        .slice(-30)
+        .reverse(),
   };
 }
 
 function broadcast(data: unknown) {
-  const message = JSON.stringify(data);
+  const message =
+    JSON.stringify(data);
 
-  for (const client of [...clients]) {
+  for (
+    const client of [
+      ...clients,
+    ]
+  ) {
     try {
-      if (client.socket.readyState === WebSocket.OPEN) {
-        client.socket.send(message);
+      if (
+        client.socket.readyState ===
+        WebSocket.OPEN
+      ) {
+        client.socket.send(
+          message,
+        );
       } else {
-        clients.delete(client);
+        clients.delete(
+          client,
+        );
       }
     } catch {
       clients.delete(client);
@@ -219,22 +392,197 @@ function broadcast(data: unknown) {
 function broadcastDashboard() {
   broadcast({
     type: "dashboard",
-    data: dashboardState(),
+    data:
+      dashboardState(),
   });
 }
 
 function scheduleReconnect() {
-  if (reconnectTimer !== null) return;
+  if (
+    reconnectTimer !== null
+  ) {
+    return;
+  }
 
-  const delay = Math.min(
-    30000,
-    1000 * Math.max(1, reconnectAttempts),
+  const delay =
+    Math.min(
+      30000,
+      1000 *
+        Math.max(
+          1,
+          reconnectAttempts,
+        ),
+    );
+
+  reconnectTimer =
+    setTimeout(() => {
+      reconnectTimer =
+        null;
+
+      connectDeriv();
+    }, delay) as unknown as number;
+}
+
+function chooseVolatility90Symbol(
+  symbols: DerivSymbol[],
+): DerivSymbol | null {
+  const usable =
+    symbols.filter(
+      (item) =>
+        typeof item.symbol ===
+          "string" &&
+        typeof item.display_name ===
+          "string",
+    );
+
+  const exact =
+    usable.find(
+      (item) =>
+        item.symbol ===
+        "1HZ90V",
+    );
+
+  if (exact) {
+    return exact;
+  }
+
+  const nameMatch =
+    usable.find(
+      (item) => {
+        const name =
+          String(
+            item.display_name,
+          ).toLowerCase();
+
+        return (
+          name.includes(
+            "volatility 90",
+          ) &&
+          (
+            name.includes(
+              "1s",
+            ) ||
+            String(
+              item.symbol,
+            )
+              .toLowerCase()
+              .includes(
+                "1hz90",
+              )
+          )
+        );
+      },
+    );
+
+  if (nameMatch) {
+    return nameMatch;
+  }
+
+  const symbolMatch =
+    usable.find(
+      (item) =>
+        String(
+          item.symbol,
+        )
+          .toUpperCase()
+          .includes(
+            "90",
+          ) &&
+        String(
+          item.symbol,
+        )
+          .toUpperCase()
+          .includes(
+            "1HZ",
+          ),
+    );
+
+  return (
+    symbolMatch ??
+    null
+  );
+}
+
+function discoverSymbolAndSubscribe() {
+  if (
+    !derivSocket ||
+    derivSocket.readyState !==
+      WebSocket.OPEN
+  ) {
+    return;
+  }
+
+  if (discoveringSymbol) {
+    return;
+  }
+
+  discoveringSymbol = true;
+
+  derivSocket.send(
+    JSON.stringify({
+      active_symbols:
+        "brief",
+      product_type:
+        "basic",
+      req_id: 1001,
+    }),
+  );
+}
+
+function subscribeToSymbol(
+  selected: DerivSymbol,
+) {
+  if (
+    !derivSocket ||
+    derivSocket.readyState !==
+      WebSocket.OPEN
+  ) {
+    return;
+  }
+
+  const symbol =
+    String(
+      selected.symbol,
+    );
+
+  SYMBOL = symbol;
+
+  SYMBOL_NAME =
+    String(
+      selected.display_name ||
+        "Volatility 90 (1s)",
+    );
+
+  if (
+    typeof selected.pip ===
+      "number" &&
+    Number.isFinite(
+      selected.pip,
+    )
+  ) {
+    PIP_SIZE =
+      Math.max(
+        0,
+        Math.round(
+          selected.pip,
+        ),
+      );
+  }
+
+  lastError = null;
+
+  connectionState =
+    "subscribing";
+
+  derivSocket.send(
+    JSON.stringify({
+      ticks: SYMBOL,
+      subscribe: 1,
+      req_id: 2001,
+    }),
   );
 
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
-    connectDeriv();
-  }, delay) as unknown as number;
+  broadcastDashboard();
 }
 
 function connectDeriv() {
@@ -242,99 +590,268 @@ function connectDeriv() {
     if (
       derivSocket &&
       (
-        derivSocket.readyState === WebSocket.OPEN ||
-        derivSocket.readyState === WebSocket.CONNECTING
+        derivSocket.readyState ===
+          WebSocket.OPEN ||
+        derivSocket.readyState ===
+          WebSocket.CONNECTING
       )
     ) {
       return;
     }
 
-    connectionState = "connecting";
+    connectionState =
+      "connecting";
+
     lastError = null;
 
-    derivSocket = new WebSocket(DERIV_WS);
+    discoveringSymbol =
+      false;
 
-    derivSocket.onopen = () => {
-      reconnectAttempts = 0;
-      connectionState = "online";
-      lastError = null;
-
-      derivSocket?.send(
-        JSON.stringify({
-          ticks: SYMBOL,
-          subscribe: 1,
-        }),
+    derivSocket =
+      new WebSocket(
+        DERIV_WS,
       );
 
-      broadcastDashboard();
-    };
+    derivSocket.onopen =
+      () => {
+        reconnectAttempts = 0;
 
-    derivSocket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
+        connectionState =
+          "discovering";
 
-        if (message.error) {
-          lastError =
-            message.error.message ||
-            "Deriv API returned an error";
+        lastError = null;
 
-          connectionState = "error";
-
-          broadcastDashboard();
-          return;
-        }
-
-        if (message.msg_type === "tick" && message.tick) {
-          const quote = Number(message.tick.quote);
-
-          const tick: Tick = {
-            quote,
-            epoch: Number(message.tick.epoch),
-            digit: getDigit(quote),
-          };
-
-          ticks.push(tick);
-
-          if (ticks.length > MAX_TICKS) {
-            ticks = ticks.slice(-MAX_TICKS);
-          }
-
-          lastTickAt = Date.now();
-          connectionState = "online";
-          lastError = null;
-
-          broadcastDashboard();
-        }
-      } catch (error) {
-        lastError =
-          error instanceof Error
-            ? error.message
-            : "Unable to process tick";
+        discoverSymbolAndSubscribe();
 
         broadcastDashboard();
-      }
-    };
+      };
 
-    derivSocket.onerror = () => {
-      lastError = "Deriv WebSocket error";
-      connectionState = "error";
+    derivSocket.onmessage =
+      (event) => {
+        try {
+          const message =
+            JSON.parse(
+              event.data,
+            );
 
-      broadcastDashboard();
-    };
+          if (
+            message.error
+          ) {
+            lastError =
+              message.error
+                .message ||
+              "Deriv API returned an error";
 
-    derivSocket.onclose = () => {
-      derivSocket = null;
+            connectionState =
+              "error";
 
-      connectionState = "reconnecting";
+            discoveringSymbol =
+              false;
 
-      reconnectAttempts++;
+            broadcastDashboard();
 
-      broadcastDashboard();
+            return;
+          }
 
-      scheduleReconnect();
-    };
+          if (
+            message.req_id ===
+              1001 &&
+            Array.isArray(
+              message.active_symbols,
+            )
+          ) {
+            discoveringSymbol =
+              false;
+
+            const selected =
+              chooseVolatility90Symbol(
+                message.active_symbols,
+              );
+
+            if (!selected) {
+              const available =
+                message.active_symbols
+                  .filter(
+                    (
+                      item: DerivSymbol,
+                    ) =>
+                      String(
+                        item.display_name ||
+                          "",
+                      )
+                        .toLowerCase()
+                        .includes(
+                          "volatility",
+                        ),
+                  )
+                  .slice(0, 20)
+                  .map(
+                    (
+                      item: DerivSymbol,
+                    ) =>
+                      `${item.display_name} (${item.symbol})`,
+                  );
+
+              lastError =
+                "Volatility 90 (1s) was not found in Deriv active_symbols.";
+
+              if (
+                available.length
+              ) {
+                lastError +=
+                  " Available volatility symbols: " +
+                  available.join(
+                    ", ",
+                  );
+              }
+
+              connectionState =
+                "error";
+
+              broadcastDashboard();
+
+              return;
+            }
+
+            subscribeToSymbol(
+              selected,
+            );
+
+            return;
+          }
+
+          if (
+            message.msg_type ===
+              "tick" &&
+            message.tick
+          ) {
+            const quote =
+              Number(
+                message.tick.quote,
+              );
+
+            if (
+              !Number.isFinite(
+                quote,
+              )
+            ) {
+              return;
+            }
+
+            if (
+              message.tick.pip_size !==
+                undefined
+            ) {
+              const tickPip =
+                Number(
+                  message.tick.pip_size,
+                );
+
+              if (
+                Number.isFinite(
+                  tickPip,
+                )
+              ) {
+                PIP_SIZE =
+                  Math.max(
+                    0,
+                    Math.round(
+                      tickPip,
+                    ),
+                  );
+              }
+            }
+
+            const tick: Tick =
+              {
+                quote,
+
+                epoch:
+                  Number(
+                    message.tick
+                      .epoch,
+                  ),
+
+                digit:
+                  getDigit(
+                    quote,
+                    PIP_SIZE,
+                  ),
+              };
+
+            ticks.push(tick);
+
+            if (
+              ticks.length >
+              MAX_TICKS
+            ) {
+              ticks =
+                ticks.slice(
+                  -MAX_TICKS,
+                );
+            }
+
+            lastTickAt =
+              Date.now();
+
+            connectionState =
+              "online";
+
+            lastError = null;
+
+            broadcastDashboard();
+
+            return;
+          }
+
+          if (
+            message.msg_type ===
+              "tick" &&
+            !message.tick
+          ) {
+            return;
+          }
+        } catch (error) {
+          lastError =
+            error instanceof Error
+              ? error.message
+              : "Unable to process Deriv message";
+
+          broadcastDashboard();
+        }
+      };
+
+    derivSocket.onerror =
+      () => {
+        lastError =
+          "Deriv WebSocket error";
+
+        connectionState =
+          "error";
+
+        broadcastDashboard();
+      };
+
+    derivSocket.onclose =
+      () => {
+        derivSocket =
+          null;
+
+        discoveringSymbol =
+          false;
+
+        connectionState =
+          "reconnecting";
+
+        reconnectAttempts++;
+
+        broadcastDashboard();
+
+        scheduleReconnect();
+      };
   } catch (error) {
-    connectionState = "error";
+    connectionState =
+      "error";
 
     lastError =
       error instanceof Error
@@ -349,71 +866,97 @@ function connectDeriv() {
   }
 }
 
-function json(data: unknown, status = 200) {
+function json(
+  data: unknown,
+  status = 200,
+) {
   return new Response(
-    JSON.stringify(data, null, 2),
+    JSON.stringify(
+      data,
+      null,
+      2,
+    ),
     {
       status,
       headers: {
         "content-type":
           "application/json; charset=utf-8",
-        "cache-control": "no-store",
+
+        "cache-control":
+          "no-store",
       },
     },
   );
 }
 
-function html() {
-  return new Response(DASHBOARD_HTML, {
-    headers: {
-      "content-type":
-        "text/html; charset=utf-8",
-      "cache-control": "no-store",
-    },
-  });
-}
-
-function upgradeWebSocket(request: Request) {
-  const { socket, response } =
-    Deno.upgradeWebSocket(request);
-
-  const client: Client = { socket };
-
-  socket.onopen = () => {
-    clients.add(client);
-
-    socket.send(
-      JSON.stringify({
-        type: "dashboard",
-        data: dashboardState(),
-      }),
+function upgradeWebSocket(
+  request: Request,
+) {
+  const {
+    socket,
+    response,
+  } =
+    Deno.upgradeWebSocket(
+      request,
     );
-  };
 
-  socket.onclose = () => {
-    clients.delete(client);
-  };
+  const client: Client =
+    {
+      socket,
+    };
 
-  socket.onerror = () => {
-    clients.delete(client);
-  };
+  socket.onopen =
+    () => {
+      clients.add(
+        client,
+      );
+
+      socket.send(
+        JSON.stringify({
+          type:
+            "dashboard",
+
+          data:
+            dashboardState(),
+        }),
+      );
+    };
+
+  socket.onclose =
+    () => {
+      clients.delete(
+        client,
+      );
+    };
+
+  socket.onerror =
+    () => {
+      clients.delete(
+        client,
+      );
+    };
 
   return response;
 }
 
 const DASHBOARD_HTML = `
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
-<meta charset="UTF-8" />
+
+<meta charset="UTF-8">
+
 <meta
   name="viewport"
   content="width=device-width, initial-scale=1.0"
-/>
+>
 
 <title>V90 Tick Analyzer</title>
 
 <style>
+
 :root {
   --bg: #080d18;
   --panel: #111827;
@@ -438,7 +981,6 @@ body {
   color: var(--text);
   font-family:
     Inter,
-    ui-sans-serif,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -449,7 +991,7 @@ body {
 header {
   padding: 22px 28px;
   border-bottom: 1px solid var(--border);
-  background: rgba(17, 24, 39, .92);
+  background: rgba(17,24,39,.94);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -526,11 +1068,13 @@ h1 {
 }
 
 .card {
-  background: linear-gradient(
-    180deg,
-    var(--panel2),
-    var(--panel)
-  );
+  background:
+    linear-gradient(
+      180deg,
+      var(--panel2),
+      var(--panel)
+    );
+
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 20px;
@@ -569,6 +1113,7 @@ h1 {
   grid-template-columns:
     minmax(0, 1.45fr)
     minmax(350px, .85fr);
+
   gap: 16px;
 }
 
@@ -576,6 +1121,7 @@ h1 {
   display: grid;
   grid-template-columns:
     repeat(10, minmax(0, 1fr));
+
   gap: 8px;
 }
 
@@ -584,7 +1130,7 @@ h1 {
   padding: 12px 8px;
   border-radius: 14px;
   border: 1px solid var(--border);
-  background: rgba(8, 13, 24, .55);
+  background: rgba(8,13,24,.55);
   text-align: center;
 }
 
@@ -647,7 +1193,7 @@ h1 {
   display: flex;
   justify-content: space-between;
   padding: 10px 12px;
-  background: rgba(8, 13, 24, .55);
+  background: rgba(8,13,24,.55);
   border: 1px solid var(--border);
   border-radius: 10px;
 }
@@ -656,12 +1202,13 @@ h1 {
   display: grid;
   grid-template-columns:
     repeat(4, minmax(0, 1fr));
+
   gap: 10px;
 }
 
 .window {
   padding: 14px;
-  background: rgba(8, 13, 24, .55);
+  background: rgba(8,13,24,.55);
   border: 1px solid var(--border);
   border-radius: 12px;
 }
@@ -704,11 +1251,16 @@ h1 {
   display: grid;
   grid-template-columns:
     1fr auto auto;
+
   gap: 12px;
   align-items: center;
+
   padding: 10px 12px;
+
   border-radius: 10px;
-  background: rgba(8, 13, 24, .55);
+
+  background: rgba(8,13,24,.55);
+
   border: 1px solid var(--border);
 }
 
@@ -726,7 +1278,20 @@ h1 {
   line-height: 1.5;
 }
 
+.error-box {
+  display: none;
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,107,107,.35);
+  background: rgba(255,107,107,.08);
+  color: #ffb4b4;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 @media (max-width: 1100px) {
+
   .grid {
     grid-template-columns:
       repeat(2, minmax(0, 1fr));
@@ -743,6 +1308,7 @@ h1 {
 }
 
 @media (max-width: 700px) {
+
   header {
     padding: 16px;
   }
@@ -766,169 +1332,276 @@ h1 {
   }
 
   .windows {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns:
+      1fr 1fr;
   }
 
   .big-number {
     font-size: 27px;
   }
 }
+
 </style>
+
 </head>
 
 <body>
 
 <header>
-  <div class="header-row">
-    <div class="brand">
-      <div class="logo">📊</div>
-      <div>
-        <h1>V90 Tick Analyzer</h1>
-        <div class="subtitle">
-          Volatility 90 (1s) • Live research dashboard
-        </div>
-      </div>
-    </div>
 
-    <div class="status">
-      <span class="dot" id="statusDot"></span>
-      <span id="statusText">Connecting...</span>
-    </div>
-  </div>
+<div class="header-row">
+
+<div class="brand">
+
+<div class="logo">
+📊
+</div>
+
+<div>
+
+<h1>
+V90 Tick Analyzer
+</h1>
+
+<div class="subtitle">
+Volatility 90 (1s) • Live research dashboard
+</div>
+
+</div>
+
+</div>
+
+<div class="status">
+
+<span
+  class="dot"
+  id="statusDot">
+</span>
+
+<span id="statusText">
+Connecting...
+</span>
+
+</div>
+
+</div>
+
 </header>
 
 <main class="container">
 
-  <div class="grid">
+<div class="grid">
 
-    <div class="card">
-      <div class="card-label">Latest Tick</div>
-      <div class="big-number" id="latestQuote">—</div>
-      <div class="small">
-        Last digit:
-        <strong id="latestDigit">—</strong>
-      </div>
-    </div>
+<div class="card">
 
-    <div class="card">
-      <div class="card-label">Ticks Collected</div>
-      <div class="big-number" id="totalTicks">0</div>
-      <div class="small">
-        Maximum rolling history: 1,000
-      </div>
-    </div>
+<div class="card-label">
+Latest Tick
+</div>
 
-    <div class="card">
-      <div class="card-label">Market</div>
-      <div class="big-number" style="font-size:24px">
-        V90 (1s)
-      </div>
-      <div class="small" id="symbol">
-        1HZ90V
-      </div>
-    </div>
+<div
+  class="big-number"
+  id="latestQuote">
+—
+</div>
 
-    <div class="card">
-      <div class="card-label">Last Update</div>
-      <div class="big-number" style="font-size:22px"
-           id="lastUpdate">
-        Waiting...
-      </div>
-      <div class="small">
-        Live WebSocket stream
-      </div>
-    </div>
+<div class="small">
+Last digit:
+<strong id="latestDigit">
+—
+</strong>
+</div>
 
-  </div>
+</div>
 
-  <div class="section main-grid">
+<div class="card">
 
-    <div class="card">
-      <h2 class="section-title">
-        Last-Digit Frequency — Latest 100 Ticks
-      </h2>
+<div class="card-label">
+Ticks Collected
+</div>
 
-      <div class="digits" id="digitFrequency"></div>
-    </div>
+<div
+  class="big-number"
+  id="totalTicks">
+0
+</div>
 
-    <div class="card prediction-box">
-      <div class="card-label">
-        Current Research Prediction
-      </div>
+<div class="small">
+Maximum rolling history: 1,000
+</div>
 
-      <div class="prediction-digit"
-           id="predictionDigit">
-        —
-      </div>
+</div>
 
-      <div class="confidence"
-           id="predictionConfidence">
-        Collecting data...
-      </div>
+<div class="card">
 
-      <div class="small">
-        Weighted multi-window statistical score
-      </div>
+<div class="card-label">
+Detected Market
+</div>
 
-      <div class="rank-list"
-           id="rankedDigits"></div>
-    </div>
+<div
+  class="big-number"
+  style="font-size:20px"
+  id="marketName">
+Searching...
+</div>
 
-  </div>
+<div
+  class="small"
+  id="symbol">
+Waiting for Deriv...
+</div>
 
-  <div class="section">
+</div>
 
-    <div class="card">
-      <h2 class="section-title">
-        Multi-Window Analysis
-      </h2>
+<div class="card">
 
-      <div class="windows"
-           id="windows"></div>
-    </div>
+<div class="card-label">
+Last Update
+</div>
 
-  </div>
+<div
+  class="big-number"
+  style="font-size:22px"
+  id="lastUpdate">
+Waiting...
+</div>
 
-  <div class="section">
+<div class="small">
+Live WebSocket stream
+</div>
 
-    <div class="card">
-      <h2 class="section-title">
-        Recent Live Ticks
-      </h2>
+</div>
 
-      <div class="ticks"
-           id="recentTicks"></div>
-    </div>
+</div>
 
-  </div>
+<div
+  class="error-box"
+  id="errorBox">
+</div>
 
-  <div class="footer-note">
-    Research and observation dashboard only.
-    Statistical frequencies and analytical predictions
-    do not guarantee future tick outcomes.
-    No trades are placed by this application.
-  </div>
+<div class="section main-grid">
+
+<div class="card">
+
+<h2 class="section-title">
+Last-Digit Frequency — Latest 100 Ticks
+</h2>
+
+<div
+  class="digits"
+  id="digitFrequency">
+</div>
+
+</div>
+
+<div class="card prediction-box">
+
+<div class="card-label">
+Current Research Prediction
+</div>
+
+<div
+  class="prediction-digit"
+  id="predictionDigit">
+—
+</div>
+
+<div
+  class="confidence"
+  id="predictionConfidence">
+Collecting data...
+</div>
+
+<div class="small">
+Weighted multi-window statistical score
+</div>
+
+<div
+  class="rank-list"
+  id="rankedDigits">
+</div>
+
+</div>
+
+</div>
+
+<div class="section">
+
+<div class="card">
+
+<h2 class="section-title">
+Multi-Window Analysis
+</h2>
+
+<div
+  class="windows"
+  id="windows">
+</div>
+
+</div>
+
+</div>
+
+<div class="section">
+
+<div class="card">
+
+<h2 class="section-title">
+Recent Live Ticks
+</h2>
+
+<div
+  class="ticks"
+  id="recentTicks">
+</div>
+
+</div>
+
+</div>
+
+<div class="footer-note">
+
+Research and observation dashboard only.
+
+Statistical frequencies and analytical predictions
+do not guarantee future tick outcomes.
+
+No trades are placed by this application.
+
+</div>
 
 </main>
 
 <script>
+
 let ws = null;
+
 let reconnectDelay = 1000;
 
 function escapeHtml(value) {
+
   return String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+
 }
 
 function statusColor(status) {
-  if (status === "online") return "var(--green)";
-  if (status === "error") return "var(--red)";
+
+  if (status === "online") {
+    return "var(--green)";
+  }
+
+  if (status === "error") {
+    return "var(--red)";
+  }
+
   return "var(--yellow)";
+
 }
 
 function connect() {
+
   const protocol =
     location.protocol === "https:"
       ? "wss:"
@@ -940,141 +1613,278 @@ function connect() {
     location.host +
     "/stream";
 
-  ws = new WebSocket(url);
+  ws =
+    new WebSocket(url);
 
   ws.onopen = () => {
+
     reconnectDelay = 1000;
+
   };
 
-  ws.onmessage = (event) => {
-    const message = JSON.parse(event.data);
+  ws.onmessage =
+    (event) => {
 
-    if (
-      message.type === "dashboard" &&
-      message.data
-    ) {
-      render(message.data);
-    }
-  };
+      try {
+
+        const message =
+          JSON.parse(
+            event.data,
+          );
+
+        if (
+          message.type ===
+            "dashboard" &&
+          message.data
+        ) {
+
+          render(
+            message.data,
+          );
+
+        }
+
+      } catch (_) {}
+
+    };
 
   ws.onclose = () => {
-    setTimeout(connect, reconnectDelay);
 
-    reconnectDelay = Math.min(
-      reconnectDelay * 1.5,
-      10000
+    setTimeout(
+      connect,
+      reconnectDelay,
     );
+
+    reconnectDelay =
+      Math.min(
+        reconnectDelay * 1.5,
+        10000,
+      );
+
   };
 
   ws.onerror = () => {
+
     try {
       ws.close();
     } catch (_) {}
+
   };
+
 }
 
 function render(data) {
-  document.getElementById("statusText").textContent =
-    data.status || "unknown";
 
-  document.getElementById("statusDot").style.background =
-    statusColor(data.status);
+  const status =
+    data.status ||
+    "unknown";
 
-  const latest = data.latestTick;
+  document.getElementById(
+    "statusText",
+  ).textContent =
+    status;
 
-  document.getElementById("latestQuote").textContent =
+  document.getElementById(
+    "statusDot",
+  ).style.background =
+    statusColor(status);
+
+  const latest =
+    data.latestTick;
+
+  document.getElementById(
+    "latestQuote",
+  ).textContent =
     latest
-      ? Number(latest.quote).toFixed(2)
+      ? Number(
+          latest.quote,
+        ).toFixed(2)
       : "—";
 
-  document.getElementById("latestDigit").textContent =
+  document.getElementById(
+    "latestDigit",
+  ).textContent =
     latest
       ? latest.digit
       : "—";
 
-  document.getElementById("totalTicks").textContent =
+  document.getElementById(
+    "totalTicks",
+  ).textContent =
     data.totalTicks ?? 0;
 
-  document.getElementById("symbol").textContent =
-    data.symbol || "1HZ90V";
+  document.getElementById(
+    "marketName",
+  ).textContent =
+    data.market ||
+    "Searching...";
 
-  document.getElementById("lastUpdate").textContent =
+  document.getElementById(
+    "symbol",
+  ).textContent =
+    data.symbol ||
+    "Waiting for Deriv...";
+
+  document.getElementById(
+    "lastUpdate",
+  ).textContent =
     data.lastTickAt
-      ? new Date(data.lastTickAt).toLocaleTimeString()
+      ? new Date(
+          data.lastTickAt,
+        ).toLocaleTimeString()
       : "Waiting...";
 
-  renderFrequency(data.frequencies);
-  renderPrediction(data.prediction);
-  renderWindows(data.analysis?.windows || []);
-  renderTicks(data.recentTicks || []);
-}
+  const errorBox =
+    document.getElementById(
+      "errorBox",
+    );
 
-function renderFrequency(frequencyData) {
-  const root =
-    document.getElementById("digitFrequency");
+  if (data.lastError) {
 
-  if (!frequencyData) {
-    root.innerHTML = "";
-    return;
+    errorBox.style.display =
+      "block";
+
+    errorBox.textContent =
+      data.lastError;
+
+  } else {
+
+    errorBox.style.display =
+      "none";
+
+    errorBox.textContent =
+      "";
+
   }
 
-  const max = Math.max(
-    ...frequencyData.frequencies.map(
-      item => item.count
-    ),
-    1
+  renderFrequency(
+    data.frequencies,
   );
 
-  root.innerHTML =
-    frequencyData.frequencies
-      .map(item => {
-        const width =
-          (item.count / max) * 100;
+  renderPrediction(
+    data.prediction,
+  );
 
-        return \`
-          <div class="digit-card">
-            <div class="digit">
-              \${item.digit}
-            </div>
+  renderWindows(
+    data.analysis?.windows ||
+      [],
+  );
 
-            <div class="count">
-              \${item.count}
-            </div>
+  renderTicks(
+    data.recentTicks ||
+      [],
+  );
 
-            <div class="percent">
-              \${item.percentage}%
-            </div>
-
-            <div class="bar-wrap">
-              <div
-                class="bar"
-                style="width:\${width}%">
-              </div>
-            </div>
-          </div>
-        \`;
-      })
-      .join("");
 }
 
-function renderPrediction(prediction) {
+function renderFrequency(
+  frequencyData,
+) {
+
+  const root =
+    document.getElementById(
+      "digitFrequency",
+    );
+
+  if (!frequencyData) {
+
+    root.innerHTML = "";
+
+    return;
+
+  }
+
+  const max =
+    Math.max(
+      ...frequencyData
+        .frequencies
+        .map(
+          item =>
+            item.count,
+        ),
+      1,
+    );
+
+  root.innerHTML =
+    frequencyData
+      .frequencies
+      .map(
+        item => {
+
+          const width =
+            (
+              item.count /
+              max
+            ) * 100;
+
+          return \`
+            <div class="digit-card">
+
+              <div class="digit">
+                \${item.digit}
+              </div>
+
+              <div class="count">
+                \${item.count}
+              </div>
+
+              <div class="percent">
+                \${item.percentage}%
+              </div>
+
+              <div class="bar-wrap">
+
+                <div
+                  class="bar"
+                  style="width:\${width}%">
+                </div>
+
+              </div>
+
+            </div>
+          \`;
+
+        },
+      )
+      .join("");
+
+}
+
+function renderPrediction(
+  prediction,
+) {
+
   const digit =
-    document.getElementById("predictionDigit");
+    document.getElementById(
+      "predictionDigit",
+    );
 
   const confidence =
     document.getElementById(
-      "predictionConfidence"
+      "predictionConfidence",
     );
 
   const ranked =
-    document.getElementById("rankedDigits");
+    document.getElementById(
+      "rankedDigits",
+    );
 
-  if (!prediction || !prediction.available) {
-    digit.textContent = "—";
+  if (
+    !prediction ||
+    !prediction.available
+  ) {
+
+    digit.textContent =
+      "—";
+
     confidence.textContent =
       "Collecting data...";
-    ranked.innerHTML = "";
+
+    ranked.innerHTML =
+      "";
+
     return;
+
   }
 
   digit.textContent =
@@ -1087,90 +1897,147 @@ function renderPrediction(prediction) {
   ranked.innerHTML =
     prediction.rankedDigits
       .slice(0, 5)
-      .map((item, index) => \`
-        <div class="rank">
-          <span>
-            #\${index + 1} • Digit \${item.digit}
-          </span>
-          <strong>
-            \${item.score}%
-          </strong>
-        </div>
-      \`)
+      .map(
+        (item, index) => \`
+          <div class="rank">
+
+            <span>
+              #\${index + 1}
+              • Digit
+              \${item.digit}
+            </span>
+
+            <strong>
+              \${item.score}%
+            </strong>
+
+          </div>
+        \`,
+      )
       .join("");
+
 }
 
-function renderWindows(windows) {
+function renderWindows(
+  windows,
+) {
+
   const root =
-    document.getElementById("windows");
+    document.getElementById(
+      "windows",
+    );
 
   root.innerHTML =
-    windows.map(window => {
-      const hot =
-        window.hottest
-          .map(item => item.digit)
-          .join(", ");
+    windows
+      .map(
+        window => {
 
-      const cold =
-        window.coldest
-          .map(item => item.digit)
-          .join(", ");
+          const hot =
+            window.hottest
+              .map(
+                item =>
+                  item.digit,
+              )
+              .join(", ");
 
-      return \`
-        <div class="window">
-          <div class="window-size">
-            Last \${window.window} ticks
-          </div>
+          const cold =
+            window.coldest
+              .map(
+                item =>
+                  item.digit,
+              )
+              .join(", ");
 
-          <div class="hot-cold">
-            <span class="badge hot">
-              Hot: \${hot || "—"}
-            </span>
+          return \`
+            <div class="window">
 
-            <span class="badge cold">
-              Cold: \${cold || "—"}
-            </span>
-          </div>
-        </div>
-      \`;
-    }).join("");
+              <div class="window-size">
+                Last
+                \${window.window}
+                ticks
+              </div>
+
+              <div class="hot-cold">
+
+                <span class="badge hot">
+                  Hot:
+                  \${hot || "—"}
+                </span>
+
+                <span class="badge cold">
+                  Cold:
+                  \${cold || "—"}
+                </span>
+
+              </div>
+
+            </div>
+          \`;
+
+        },
+      )
+      .join("");
+
 }
 
-function renderTicks(ticks) {
+function renderTicks(
+  ticks,
+) {
+
   const root =
-    document.getElementById("recentTicks");
+    document.getElementById(
+      "recentTicks",
+    );
 
   root.innerHTML =
-    ticks.map(tick => {
-      const time =
-        new Date(
-          tick.epoch * 1000
-        ).toLocaleTimeString();
+    ticks
+      .map(
+        tick => {
 
-      return \`
-        <div class="tick-row">
-          <div>
-            \${escapeHtml(
-              Number(tick.quote).toFixed(2)
-            )}
-          </div>
+          const time =
+            new Date(
+              tick.epoch *
+                1000,
+            ).toLocaleTimeString();
 
-          <div class="small">
-            \${escapeHtml(time)}
-          </div>
+          return \`
+            <div class="tick-row">
 
-          <div class="tick-digit">
-            \${escapeHtml(tick.digit)}
-          </div>
-        </div>
-      \`;
-    }).join("");
+              <div>
+                \${escapeHtml(
+                  Number(
+                    tick.quote,
+                  ).toFixed(2),
+                )}
+              </div>
+
+              <div class="small">
+                \${escapeHtml(
+                  time,
+                )}
+              </div>
+
+              <div class="tick-digit">
+                \${escapeHtml(
+                  tick.digit,
+                )}
+              </div>
+
+            </div>
+          \`;
+
+        },
+      )
+      .join("");
+
 }
 
 connect();
+
 </script>
 
 </body>
+
 </html>
 `;
 
@@ -1181,134 +2048,266 @@ Deno.serve(
     port: PORT,
   },
   (request) => {
-    const url = new URL(request.url);
 
-    if (url.pathname === "/") {
-      return html();
+    const url =
+      new URL(
+        request.url,
+      );
+
+    if (
+      url.pathname === "/"
+    ) {
+
+      return new Response(
+        DASHBOARD_HTML,
+        {
+          headers: {
+            "content-type":
+              "text/html; charset=utf-8",
+
+            "cache-control":
+              "no-store",
+          },
+        },
+      );
+
     }
 
-    if (url.pathname === "/health") {
+    if (
+      url.pathname ===
+      "/health"
+    ) {
+
       return json({
-        name: "V90 Matches Research Analyzer",
-        status: connectionState,
-        symbol: SYMBOL,
-        market: "Volatility 90 (1s)",
-        authentication: "none",
-        trading: false,
-        observationSeconds: 10,
+        name:
+          "V90 Tick Analyzer",
+
+        status:
+          connectionState,
+
+        symbol:
+          SYMBOL,
+
+        market:
+          SYMBOL_NAME,
+
+        authentication:
+          "none",
+
+        trading:
+          false,
+
+        ticksCollected:
+          ticks.length,
+
+        lastError,
+
         endpoints: {
+          website: "/",
           health: "/health",
-          testDeriv: "/test-deriv",
-          history: "/history",
-          analyze: "/analyze",
-          stream: "/stream",
-          prediction: "/prediction",
-          predictionCurrent:
-            "/prediction/current",
-          predictionHistory:
-            "/prediction/history",
+          testDeriv:
+            "/test-deriv",
+          history:
+            "/history",
+          analyze:
+            "/analyze",
+          stream:
+            "/stream",
+          prediction:
+            "/prediction",
           researchStats:
             "/research/stats",
           qualification:
             "/qualification",
-          mcp: "/mcp",
+          mcp:
+            "/mcp",
         },
       });
+
     }
 
-    if (url.pathname === "/stream") {
+    if (
+      url.pathname ===
+      "/stream"
+    ) {
+
       if (
-        request.headers.get("upgrade") !==
-        "websocket"
+        request.headers.get(
+          "upgrade",
+        ) !== "websocket"
       ) {
+
         return new Response(
           "Expected WebSocket connection",
-          { status: 426 },
+          {
+            status: 426,
+          },
         );
+
       }
 
-      return upgradeWebSocket(request);
+      return upgradeWebSocket(
+        request,
+      );
+
     }
 
-    if (url.pathname === "/test-deriv") {
+    if (
+      url.pathname ===
+      "/test-deriv"
+    ) {
+
       return json({
         connected:
-          connectionState === "online",
-        status: connectionState,
-        symbol: SYMBOL,
-        ticksCollected: ticks.length,
+          connectionState ===
+          "online",
+
+        status:
+          connectionState,
+
+        symbol:
+          SYMBOL,
+
+        market:
+          SYMBOL_NAME,
+
+        ticksCollected:
+          ticks.length,
+
         latestTick:
-          ticks[ticks.length - 1] ?? null,
-        error: lastError,
+          ticks[
+            ticks.length - 1
+          ] ?? null,
+
+        error:
+          lastError,
       });
+
     }
 
-    if (url.pathname === "/history") {
+    if (
+      url.pathname ===
+      "/history"
+    ) {
+
       return json({
-        symbol: SYMBOL,
-        count: ticks.length,
+        symbol:
+          SYMBOL,
+
+        market:
+          SYMBOL_NAME,
+
+        count:
+          ticks.length,
+
         ticks,
       });
-    }
 
-    if (url.pathname === "/analyze") {
-      return json(getAnalysis());
     }
 
     if (
-      url.pathname === "/prediction" ||
-      url.pathname === "/prediction/current"
+      url.pathname ===
+      "/analyze"
     ) {
-      return json(getPrediction());
+
+      return json(
+        getAnalysis(),
+      );
+
     }
 
     if (
-      url.pathname === "/prediction/history"
+      url.pathname ===
+        "/prediction" ||
+      url.pathname ===
+        "/prediction/current"
     ) {
-      return json({
-        note:
-          "Prediction history is not persisted in this deployment version.",
-        current: getPrediction(),
-      });
+
+      return json(
+        getPrediction(),
+      );
+
     }
 
-    if (url.pathname === "/research/stats") {
+    if (
+      url.pathname ===
+      "/research/stats"
+    ) {
+
       return json({
-        state: dashboardState(),
+        state:
+          dashboardState(),
       });
+
     }
 
-    if (url.pathname === "/qualification") {
+    if (
+      url.pathname ===
+      "/qualification"
+    ) {
+
       return json({
         qualified:
-          ticks.length >= 100,
-        ticksCollected: ticks.length,
-        minimumTicks: 100,
+          ticks.length >=
+          100,
+
+        ticksCollected:
+          ticks.length,
+
+        minimumTicks:
+          100,
+
         note:
-          "Qualification indicates sufficient observation data for this research display. It does not indicate guaranteed prediction accuracy.",
+          "Qualification means enough observation data has been collected for the research display. It does not guarantee prediction accuracy.",
       });
+
     }
 
-    if (url.pathname === "/mcp") {
+    if (
+      url.pathname ===
+      "/mcp"
+    ) {
+
       return json({
-        name: "V90 Matches Research Analyzer",
-        status: "online",
+        name:
+          "V90 Tick Analyzer",
+
+        status:
+          "online",
+
+        symbol:
+          SYMBOL,
+
+        market:
+          SYMBOL_NAME,
+
+        readOnly:
+          true,
+
+        trading:
+          false,
+
         note:
           "Read-only research and observation service. No trades are placed.",
       });
+
     }
 
     return json(
       {
-        error: "Not found",
-        path: url.pathname,
+        error:
+          "Not found",
+
+        path:
+          url.pathname,
       },
       404,
     );
+
   },
 );
 
 console.log(
-  "V90 Tick Analyzer dashboard running on port " +
-    PORT,
+  "V90 Tick Analyzer website running on port " +
+  PORT,
 );
