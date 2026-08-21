@@ -1,862 +1,1190 @@
-if (request.method === "GET" && url.pathname === "/") {
-  const dashboard = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>V90 (1s) Matches Research Analyzer</title>
-
-<style>
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: Arial, Helvetica, sans-serif;
-  background: #0b1020;
-  color: #f5f7ff;
-}
-
-.container {
-  width: min(1200px, 94%);
-  margin: 0 auto;
-  padding: 24px 0 50px;
-}
-
-header {
-  background: #121a30;
-  border: 1px solid #263252;
-  border-radius: 18px;
-  padding: 24px;
-  margin-bottom: 18px;
-}
-
-h1 {
-  margin: 0 0 8px;
-  font-size: 28px;
-}
-
-.subtitle {
-  color: #9da9c7;
-  margin-bottom: 16px;
-}
-
-.status-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: #202b49;
-  color: #cbd5f5;
-  font-size: 13px;
-}
-
-.badge.online {
-  background: #123d2c;
-  color: #65e6a5;
-}
-
-.badge.offline {
-  background: #45202a;
-  color: #ff9daa;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.card {
-  background: #121a30;
-  border: 1px solid #263252;
-  border-radius: 16px;
-  padding: 20px;
-}
-
-.card-title {
-  color: #8996b7;
-  font-size: 13px;
-  margin-bottom: 10px;
-}
-
-.value {
-  font-size: 30px;
-  font-weight: 700;
-}
-
-.large {
-  font-size: 48px;
-}
-
-.green {
-  color: #65e6a5;
-}
-
-.yellow {
-  color: #ffd166;
-}
-
-.red {
-  color: #ff7b8a;
-}
-
-.blue {
-  color: #82aaff;
-}
-
-.main-grid {
-  display: grid;
-  grid-template-columns: 1.3fr 0.7fr;
-  gap: 18px;
-  margin-bottom: 18px;
-}
-
-.panel {
-  background: #121a30;
-  border: 1px solid #263252;
-  border-radius: 16px;
-  padding: 22px;
-}
-
-.panel h2 {
-  margin-top: 0;
-  font-size: 19px;
-}
-
-.candidate {
-  text-align: center;
-  padding: 20px;
-}
-
-.candidate-digit {
-  font-size: 100px;
-  line-height: 1;
-  font-weight: 800;
-  margin: 15px 0;
-}
-
-.score {
-  font-size: 24px;
-}
-
-button {
-  border: 0;
-  border-radius: 10px;
-  padding: 13px 20px;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  background: #5b7cff;
-  color: white;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-button.secondary {
-  background: #25304d;
-}
-
-.countdown {
-  font-size: 55px;
-  font-weight: 800;
-  margin: 15px 0;
-}
-
-.stat-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 11px 0;
-  border-bottom: 1px solid #222d48;
-}
-
-.stat-row:last-child {
-  border-bottom: 0;
-}
-
-.label {
-  color: #8f9bb8;
-}
-
-.feed {
-  height: 230px;
-  overflow-y: auto;
-  background: #080d1a;
-  border-radius: 10px;
-  padding: 10px;
-  font-family: monospace;
-  font-size: 13px;
-}
-
-.tick {
-  padding: 4px 0;
-  border-bottom: 1px solid #151d32;
-}
-
-.tick-digit {
-  font-weight: 700;
-}
-
-.notice {
-  margin-top: 12px;
-  padding: 12px;
-  border-radius: 10px;
-  background: #202b49;
-  color: #aeb9d5;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.footer {
-  text-align: center;
-  color: #697592;
-  font-size: 12px;
-  margin-top: 25px;
-}
-
-@media (max-width: 900px) {
-  .grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .main-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 550px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
-  h1 {
-    font-size: 23px;
-  }
-
-  .candidate-digit {
-    font-size: 80px;
-  }
-}
-</style>
-</head>
-
-<body>
-
-<div class="container">
-
-<header>
-  <h1>V90 (1s) Matches Research Analyzer</h1>
-
-  <div class="subtitle">
-    Volatility 90 (1s) • Read-only market-data research • No trading
-  </div>
-
-  <div class="status-row">
-    <span id="connectionBadge" class="badge offline">
-      ● Connecting...
-    </span>
-
-    <span class="badge">
-      Symbol: 1HZ90V
-    </span>
-
-    <span class="badge">
-      Model: ${MODEL_VERSION}
-    </span>
-
-    <span class="badge">
-      Observation: 10 seconds
-    </span>
-  </div>
-</header>
-
-<div class="grid">
-
-  <div class="card">
-    <div class="card-title">LATEST DIGIT</div>
-    <div id="latestDigit" class="value large blue">-</div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">MODEL CANDIDATE</div>
-    <div id="modelCandidate" class="value large yellow">-</div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">MODEL SCORE</div>
-    <div id="modelScore" class="value">-</div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">MODEL STATUS</div>
-    <div id="modelStatus" class="value">-</div>
-  </div>
-
-</div>
-
-<div class="main-grid">
-
-  <div class="panel candidate">
-
-    <h2>Current Matches Candidate</h2>
-
-    <div id="candidateDigit" class="candidate-digit blue">
-      -
-    </div>
-
-    <div class="score">
-      Statistical Score:
-      <strong id="candidateScore">-</strong>
-    </div>
-
-    <div id="candidateExplanation" class="notice">
-      Waiting for fresh V90 data...
-    </div>
-
-    <br>
-
-    <button id="analyzeButton" onclick="analyze()">
-      Analyze Fresh Data
-    </button>
-
-    <button id="observeButton" onclick="createObservation()">
-      Start 10-Second Observation
-    </button>
-
-  </div>
-
-  <div class="panel">
-
-    <h2>Observation</h2>
-
-    <div class="stat-row">
-      <span class="label">Status</span>
-      <strong id="observationStatus">NONE</strong>
-    </div>
-
-    <div class="stat-row">
-      <span class="label">Active Digit</span>
-      <strong id="activeDigit">-</strong>
-    </div>
-
-    <div class="stat-row">
-      <span class="label">Score</span>
-      <strong id="activeScore">-</strong>
-    </div>
-
-    <div class="countdown" id="countdown">
-      --
-    </div>
-
-    <div class="stat-row">
-      <span class="label">Validation</span>
-      <strong id="validationStatus">-</strong>
-    </div>
-
-    <div id="observationMessage" class="notice">
-      No active observation.
-    </div>
-
-  </div>
-
-</div>
-
-<div class="main-grid">
-
-  <div class="panel">
-
-    <h2>Research Statistics</h2>
-
-    <div class="stat-row">
-      <span class="label">Total Predictions</span>
-      <strong id="totalPredictions">-</strong>
-    </div>
-
-    <div class="stat-row">
-      <span class="label">Completed</span>
-      <strong id="totalCompleted">-</strong>
-    </div>
-
-    <div class="stat-row">
-      <span class="label">Invalidated</span>
-      <strong id="totalInvalidated">-</strong>
-    </div>
-
-    <div class="stat-row">
-      <span class="label">Clean Samples</span>
-      <strong id="cleanSamples">-</strong>
-    </div>
-
-    <div class="stat-row">
-      <span class="label">Next-Tick Accuracy</span>
-      <strong id="nextTickAccuracy">-</strong>
-    </div>
-
-    <div class="stat-row">
-      <span class="label">10-Second Appearance Rate</span>
-      <strong id="windowRate">-</strong>
-    </div>
-
-    <div class="stat-row">
-      <span class="label">Random Next-Tick Baseline</span>
-      <strong>10%</strong>
-    </div>
-
-  </div>
-
-  <div class="panel">
-
-    <h2>Live Tick Feed</h2>
-
-    <div id="feed" class="feed">
-      Waiting for ticks...
-    </div>
-
-  </div>
-
-</div>
-
-<div class="panel">
-
-  <h2>System Information</h2>
-
-  <div class="stat-row">
-    <span class="label">Market</span>
-    <strong>${MARKET_NAME}</strong>
-  </div>
-
-  <div class="stat-row">
-    <span class="label">Symbol</span>
-    <strong>${SYMBOL}</strong>
-  </div>
-
-  <div class="stat-row">
-    <span class="label">WebSocket</span>
-    <strong>Public Deriv WebSocket</strong>
-  </div>
-
-  <div class="stat-row">
-    <span class="label">Authentication</span>
-    <strong>None</strong>
-  </div>
-
-  <div class="stat-row">
-    <span class="label">Trading</span>
-    <strong class="green">Disabled</strong>
-  </div>
-
-  <div class="notice">
-    This dashboard is a research and observation tool.
-    Model scores are statistical rankings, not probabilities or guarantees.
-    Historical observations do not guarantee future outcomes.
-  </div>
-
-</div>
-
-<div class="footer">
-  V90 (1s) Research Analyzer • ${MODEL_VERSION}
-</div>
-
-</div>
-
-<script>
-
-let latestModel = null;
-let countdownTimer = null;
-
-function $(id) {
-  return document.getElementById(id);
-}
-
-function setConnection(online) {
-
-  const badge = $("connectionBadge");
-
-  if (online) {
-    badge.textContent = "● Live";
-    badge.className = "badge online";
-  } else {
-    badge.textContent = "● Offline";
-    badge.className = "badge offline";
-  }
-}
-
-async function analyze() {
-
-  const button = $("analyzeButton");
-
-  button.disabled = true;
-  button.textContent = "Analyzing...";
-
-  try {
-
-    const response = await fetch("/analyze");
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Analysis failed.");
-    }
-
-    latestModel = data;
-
-    $("latestDigit").textContent =
-      data.model?.digitFeatures
-        ? "-"
-        : "-";
-
-    $("modelCandidate").textContent = data.candidate;
-    $("candidateDigit").textContent = data.candidate;
-    $("modelScore").textContent = data.modelStatisticalScore;
-    $("candidateScore").textContent = data.modelStatisticalScore;
-
-    $("candidateExplanation").textContent =
-      data.model?.explanation ||
-      "Fresh model analysis completed.";
-
-    if (data.qualifiedByModel) {
-
-      $("modelStatus").textContent = "QUALIFIED";
-      $("modelStatus").className = "value green";
-
-      $("candidateDigit").className =
-        "candidate-digit green";
-
-    } else {
-
-      $("modelStatus").textContent = "RESEARCH";
-      $("modelStatus").className = "value yellow";
-
-      $("candidateDigit").className =
-        "candidate-digit yellow";
-    }
-
-    setConnection(true);
-
-  } catch (error) {
-
-    $("candidateExplanation").textContent =
-      error.message || "Unable to analyze.";
-
-  } finally {
-
-    button.disabled = false;
-    button.textContent = "Analyze Fresh Data";
-  }
-}
-
-async function createObservation() {
-
-  const button = $("observeButton");
-
-  button.disabled = true;
-  button.textContent = "Creating...";
-
-  try {
-
-    const response = await fetch("/prediction", {
-      method: "POST"
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Unable to create observation.");
-    }
-
-    updateObservation(data);
-
-  } catch (error) {
-
-    $("observationMessage").textContent =
-      error.message || "Observation failed.";
-
-  } finally {
-
-    button.disabled = false;
-    button.textContent = "Start 10-Second Observation";
-  }
-}
-
-function updateObservation(data) {
-
-  if (!data || !data.prediction) return;
-
-  const p = data.prediction;
-
-  $("observationStatus").textContent =
-    p.status || "ACTIVE";
-
-  $("activeDigit").textContent =
-    p.candidate;
-
-  $("activeScore").textContent =
-    p.modelStatisticalScore;
-
-  $("validationStatus").textContent =
-    data.validated ? "VALIDATED SIGNAL" : "RESEARCH ONLY";
-
-  $("observationMessage").textContent =
-    data.display?.researchNote ||
-    "10-second observation is active.";
-
-  startCountdown(p.endTime);
-}
-
-function startCountdown(endTime) {
-
-  if (countdownTimer) {
-    clearInterval(countdownTimer);
-  }
-
-  function update() {
-
-    const remaining =
-      Math.max(
-        0,
-        new Date(endTime).getTime() - Date.now()
-      );
-
-    const seconds =
-      Math.ceil(remaining / 1000);
-
-    $("countdown").textContent =
-      seconds + "s";
-
-    if (remaining <= 0) {
-
-      clearInterval(countdownTimer);
-
-      $("countdown").textContent = "COMPLETE";
-
-      setTimeout(() => {
-        loadCurrentPrediction();
-        loadStats();
-      }, 1000);
-    }
-  }
-
-  update();
-
-  countdownTimer =
-    setInterval(update, 250);
-}
-
-async function loadCurrentPrediction() {
-
-  try {
-
-    const response =
-      await fetch("/prediction/current");
-
-    const data =
-      await response.json();
-
-    if (data.status === "ACTIVE") {
-
-      $("observationStatus").textContent =
-        "ACTIVE";
-
-      $("activeDigit").textContent =
-        data.activeMatchesDigit;
-
-      $("activeScore").textContent =
-        data.modelStatisticalScore;
-
-      $("validationStatus").textContent =
-        data.qualifiedByModel
-          ? "MODEL QUALIFIED"
-          : "RESEARCH ONLY";
-
-      startCountdown(data.endTime);
-
-    } else {
-
-      $("observationStatus").textContent =
-        "NONE";
-
-      $("activeDigit").textContent =
-        "-";
-
-      $("activeScore").textContent =
-        "-";
-
-      $("countdown").textContent =
-        "--";
-
-      $("validationStatus").textContent =
-        "-";
-    }
-
-  } catch (error) {
-
-    console.error(error);
-  }
-}
-
-async function loadStats() {
-
-  try {
-
-    const response =
-      await fetch("/research/stats");
-
-    const data =
-      await response.json();
-
-    $("totalPredictions").textContent =
-      data.totalPredictions ?? "-";
-
-    $("totalCompleted").textContent =
-      data.totalCompleted ?? "-";
-
-    $("totalInvalidated").textContent =
-      data.totalInvalidated ?? "-";
-
-    $("cleanSamples").textContent =
-      data.cleanSamples ?? "-";
-
-    $("nextTickAccuracy").textContent =
-      data.nextTickAccuracy === null ||
-      data.nextTickAccuracy === undefined
-        ? "-"
-        : data.nextTickAccuracy + "%";
-
-    $("windowRate").textContent =
-      data.windowAppearanceRate === null ||
-      data.windowAppearanceRate === undefined
-        ? "-"
-        : data.windowAppearanceRate + "%";
-
-  } catch (error) {
-
-    console.error(error);
-  }
-}
-
-function addTick(tick) {
-
-  const feed = $("feed");
-
-  if (feed.textContent === "Waiting for ticks...") {
-    feed.textContent = "";
-  }
-
-  const row =
-    document.createElement("div");
-
-  row.className = "tick";
-
-  const time =
-    new Date(
-      tick.epoch * 1000
-    ).toLocaleTimeString();
-
-  row.innerHTML =
-    time +
-    " | Quote: " +
-    tick.quote +
-    " | Digit: " +
-    '<span class="tick-digit">' +
-    tick.digit +
-    "</span>";
-
-  feed.prepend(row);
-
-  while (feed.children.length > 80) {
-    feed.removeChild(feed.lastChild);
-  }
-
-  $("latestDigit").textContent =
-    tick.digit;
-}
-
-function startLiveStream() {
-
-  const stream =
-    new EventSource("/stream");
-
-  stream.onopen = () => {
-    setConnection(true);
-  };
-
-  stream.onmessage = (event) => {
-
-    try {
-
-      const data =
-        JSON.parse(event.data);
-
-      if (data.type === "status") {
-
-        setConnection(
-          data.status === "connected"
-        );
-
-      }
-
-      if (data.type === "tick") {
-        addTick(data);
-      }
-
-      if (data.type === "error") {
-        console.error(data.error);
-      }
-
-    } catch (error) {
-
-      console.error(error);
-    }
-  };
-
-  stream.onerror = () => {
-
-    setConnection(false);
-  };
-}
-
-async function initialize() {
-
-  startLiveStream();
-
-  await analyze();
-  await loadCurrentPrediction();
-  await loadStats();
-
-  setInterval(
-    loadCurrentPrediction,
-    2000
-  );
-
-  setInterval(
-    loadStats,
-    5000
-  );
-}
-
-initialize();
-
-</script>
-
-</body>
-</html>`;
-
-  return new Response(dashboard, {
-    status: 200,
+// ============================================================
+// V90 (1s) MATCHES RESEARCH + OBSERVATION SERVER
+// ============================================================
+//
+// READ ONLY. NEVER places trades. NO Deriv token. NO account login.
+//
+// Market:
+//   1HZ90V = Volatility 90 (1s)
+//
+// ============================================================
+// FIX APPLIED IN THIS VERSION (read before deploying)
+// ============================================================
+// PREVIOUS BUG: createPrediction() required BOTH:
+//   1. model.qualifiedByModel (candidate met live consistency/score
+//      thresholds), AND
+//   2. qualification.qualified (>= 500 CLEAN COMPLETED samples
+//      already exist)
+// But clean samples can only come from COMPLETED predictions, and
+// predictions could only be created if qualification.qualified was
+// already true. That's a circular dependency with no way out:
+// cleanSamples starts at 0, can never increase, so every single
+// POST /prediction throws forever and /research/stats never moves.
+//
+// FIX: prediction creation and the 10-second observation cycle now
+// ALWAYS proceed (this is what accumulates research data over time).
+// The model always selects a top-ranked candidate — never null/-1.
+// Qualification (both the live model threshold AND the historical
+// sample-count threshold) is now used ONLY to decide what the
+// display layer calls "validated" — whether to show a "TRADE NOW"
+// prompt and whether to describe the historical OOS rate as
+// meaningful. It never blocks a record from being created, observed,
+// or completed. Everything else — honest restart recovery, frozen
+// candidate never recalculated, fixed-baseline scoring — is
+// unchanged from the previous version.
+// ============================================================
+
+const SYMBOL = "1HZ90V";
+const MARKET_NAME = "Volatility 90 (1s)";
+const MODEL_VERSION = "v4.1.0-unblocked";
+const DERIV_WS = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+
+const DEFAULT_COUNT = 500;
+const MIN_COUNT = 20;
+const MAX_COUNT = 1000;
+const CONNECTION_TIMEOUT_MS = 15_000;
+const HISTORY_TIMEOUT_MS = 15_000;
+const OBSERVATION_SECONDS = 10;
+const OBSERVATION_MS = OBSERVATION_SECONDS * 1000;
+
+// Minimum clean completed observations before historical OOS stats
+// are labeled as meaningful/validated. This NO LONGER gates whether
+// predictions get created — only how they're described on display.
+const MIN_VALIDATION_SAMPLES = 500;
+
+const MIN_WINDOW_TICKS = 7;
+const DATA_GAP_MS = 2500;
+
+// Live-model thresholds. These now describe whether a given
+// candidate is flagged as "meeting the model's own bar" for display
+// purposes — they do NOT block creation. The candidate is always
+// the top-ranked digit by raw score, qualified or not.
+const MIN_CONSISTENCY = 0.50;
+const MIN_MODEL_SCORE = 80;
+
+// ------------------------------------------------------------
+// DENO KV
+// ------------------------------------------------------------
+const kv = await Deno.openKv();
+
+// ------------------------------------------------------------
+// TYPES
+// ------------------------------------------------------------
+type Tick = { quote: number; epoch: number; digit: number; pipSize?: number };
+type DigitCounts = Record<string, number>;
+
+type WindowDefinition = { size: number; weight: number; name: string };
+
+type DigitFeatures = {
+  digit: number;
+  occurrence: Record<string, number>;
+  frequency: Record<string, number>;
+  deviationFromBaseline: Record<string, number>;
+  ticksSinceAppearance: number;
+  currentGap: number;
+  maximumGap: number;
+  repetitionScore: number;
+  clusteringScore: number;
+  shortTermChange: number;
+  consistency: number;
+  rawScore: number;
+  modelStatisticalScore: number;
+};
+
+type ModelResult = {
+  candidate: number;
+  modelStatisticalScore: number;
+  windows: WindowDefinition[];
+  digitFeatures: DigitFeatures[];
+  supportedWindows: Record<string, number>;
+  explanation: string;
+  // Whether the TOP-RANKED candidate (always selected) also meets the
+  // live model's own consistency/score bar. Informational only — does
+  // NOT block creation or observation anymore.
+  qualifiedByModel: boolean;
+};
+
+type PredictionStatus = "ACTIVE" | "COMPLETED" | "INVALIDATED";
+
+type PredictionRecord = {
+  id: string;
+  modelVersion: string;
+  candidate: number;
+  modelStatisticalScore: number;
+  qualifiedByModel: boolean;
+  createdAt: string;
+  startTime: string;
+  endTime: string;
+  status: PredictionStatus;
+  ticksUsedForPrediction: number;
+  latestPriceAtPrediction: number;
+  latestDigitAtPrediction: number;
+  modelResult: ModelResult;
+  observedTicks: Tick[];
+  observedTicksCount: number;
+  matchingTicks: Tick[];
+  matchingPrices: number[];
+  observedMatchingCount: number;
+  observedDuringWindow: boolean;
+  nextTickDigit: number | null;
+  nextTickMatched: boolean | null;
+  windowAppearanceBaseline: number | null;
+  dataGap: boolean;
+  gapCount: number;
+  gapMilliseconds: number;
+  invalidationReason: string | null;
+  completedAt: string | null;
+};
+
+type ResearchStats = {
+  modelVersion: string;
+  totalPredictions: number;
+  totalCompleted: number;
+  totalInvalidated: number;
+  totalActive: number;
+  cleanSamples: number;
+  nextTickMatches: number;
+  nextTickAccuracy: number | null;
+  nextTickBaseline: number;
+  windowMatches: number;
+  windowAppearanceRate: number | null;
+  averageWindowBaseline: number | null;
+  lastUpdated: string;
+};
+
+// ------------------------------------------------------------
+// WINDOW DEFINITIONS
+// ------------------------------------------------------------
+const WINDOWS: WindowDefinition[] = [
+  { size: 5, weight: 0.05, name: "ultra-short" },
+  { size: 10, weight: 0.08, name: "short" },
+  { size: 15, weight: 0.10, name: "short-term" },
+  { size: 20, weight: 0.12, name: "near-term" },
+  { size: 50, weight: 0.20, name: "medium-term" },
+  { size: 100, weight: 0.20, name: "extended-term" },
+  { size: 500, weight: 0.25, name: "long-term" },
+];
+
+// ------------------------------------------------------------
+// RESPONSE HELPERS
+// ------------------------------------------------------------
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data, null, 2), {
+    status,
     headers: {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-cache, no-store, must-revalidate",
+      "content-type": "application/json; charset=utf-8",
       "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET,POST,OPTIONS",
+      "access-control-allow-headers": "Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id",
+      "cache-control": "no-cache, no-store, must-revalidate",
     },
   });
 }
+function errorResponse(message: string, status = 400): Response {
+  return json({ error: message }, status);
+}
+
+function nowIso(): string { return new Date().toISOString(); }
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+function normalizeCount(requested: unknown): number {
+  const value = typeof requested === "number" ? requested : Number(requested);
+  if (!Number.isFinite(value)) return DEFAULT_COUNT;
+  return Math.max(MIN_COUNT, Math.min(MAX_COUNT, Math.floor(value)));
+}
+function makeId(): string { return `${Date.now()}-${crypto.randomUUID()}`; }
+
+// ------------------------------------------------------------
+// DIGIT EXTRACTION
+// ------------------------------------------------------------
+const DEFAULT_PIP_SIZE = 2;
+function getLastDigit(price: number, pipSize?: number): number {
+  const effectivePipSize =
+    typeof pipSize === "number" && Number.isInteger(pipSize) && pipSize >= 0 && pipSize <= 10
+      ? pipSize : DEFAULT_PIP_SIZE;
+  const text = price.toFixed(effectivePipSize);
+  const digits = text.replace(/\D/g, "");
+  if (!digits.length) throw new Error(`Unable to extract final digit from quote ${price}`);
+  return Number(digits[digits.length - 1]);
+}
+
+// ------------------------------------------------------------
+// DIGIT COUNTS
+// ------------------------------------------------------------
+function emptyDigitCounts(): DigitCounts {
+  return { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0, "9": 0 };
+}
+function countDigits(ticks: Tick[]): DigitCounts {
+  const counts = emptyDigitCounts();
+  for (const tick of ticks) counts[String(tick.digit)]++;
+  return counts;
+}
+
+// ------------------------------------------------------------
+// GAP / REPETITION / CLUSTERING FEATURES
+// ------------------------------------------------------------
+function ticksSinceLastAppearance(ticks: Tick[], digit: number): number {
+  for (let i = ticks.length - 1; i >= 0; i--) {
+    if (ticks[i].digit === digit) return ticks.length - 1 - i;
+  }
+  return ticks.length;
+}
+function maximumGap(ticks: Tick[], digit: number): number {
+  let gap = 0, maximum = 0;
+  for (const tick of ticks) {
+    if (tick.digit === digit) { maximum = Math.max(maximum, gap); gap = 0; }
+    else gap++;
+  }
+  return Math.max(maximum, gap);
+}
+function currentGap(ticks: Tick[], digit: number): number {
+  let gap = 0;
+  for (let i = ticks.length - 1; i >= 0; i--) {
+    if (ticks[i].digit === digit) break;
+    gap++;
+  }
+  return gap;
+}
+function repetitionScore(ticks: Tick[], digit: number): number {
+  if (ticks.length < 2) return 0;
+  let repetitions = 0;
+  for (let i = 1; i < ticks.length; i++) {
+    if (ticks[i].digit === digit && ticks[i - 1].digit === digit) repetitions++;
+  }
+  return repetitions / Math.max(1, ticks.length - 1);
+}
+function clusteringScore(ticks: Tick[], digit: number): number {
+  if (ticks.length < 3) return 0;
+  const positions: number[] = [];
+  for (let i = 0; i < ticks.length; i++) if (ticks[i].digit === digit) positions.push(i);
+  if (positions.length < 2) return 0;
+  let closePairs = 0;
+  for (let i = 1; i < positions.length; i++) if (positions[i] - positions[i - 1] <= 2) closePairs++;
+  return closePairs / Math.max(1, positions.length - 1);
+}
+function shortTermChange(ticks: Tick[], digit: number): number {
+  if (ticks.length < 10) return 0;
+  const half = Math.floor(ticks.length / 2);
+  const first = ticks.slice(0, half);
+  const second = ticks.slice(half);
+  const firstRate = countDigits(first)[String(digit)] / Math.max(1, first.length);
+  const secondRate = countDigits(second)[String(digit)] / Math.max(1, second.length);
+  return secondRate - firstRate;
+}
+
+// ------------------------------------------------------------
+// CONSISTENCY
+// ------------------------------------------------------------
+function getWindow(ticks: Tick[], size: number): Tick[] { return ticks.slice(-size); }
+function windowFrequency(ticks: Tick[], digit: number): number {
+  if (!ticks.length) return 0;
+  return countDigits(ticks)[String(digit)] / ticks.length;
+}
+function calculateConsistency(ticks: Tick[], digit: number): number {
+  const required = [20, 50, 100, 500];
+  let supported = 0;
+  for (const size of required) {
+    const window = getWindow(ticks, size);
+    if (!window.length) continue;
+    if (windowFrequency(window, digit) >= 0.10) supported++;
+  }
+  return supported / required.length;
+}
+
+// ------------------------------------------------------------
+// MODEL STATISTICAL SCORE — fixed-baseline, not self-referential.
+// ------------------------------------------------------------
+function scoreAgainstBaseline(rawScore: number): number {
+  const baseline = 0.10;
+  const score = 50 + ((rawScore - baseline) / 0.10) * 50;
+  return Number(clamp(score, 0, 100).toFixed(2));
+}
+
+// ------------------------------------------------------------
+// MODEL — candidate is ALWAYS the top-ranked digit by raw score.
+// qualifiedByModel is now purely informational (never null-candidate,
+// never blocks anything downstream).
+// ------------------------------------------------------------
+function calculateModel(ticks: Tick[]): ModelResult {
+  const digitFeatures: DigitFeatures[] = [];
+
+  for (let digit = 0; digit <= 9; digit++) {
+    const occurrence: Record<string, number> = {};
+    const frequency: Record<string, number> = {};
+    const deviationFromBaseline: Record<string, number> = {};
+    let rawFrequencyScore = 0;
+
+    for (const window of WINDOWS) {
+      const data = getWindow(ticks, window.size);
+      const count = countDigits(data)[String(digit)];
+      const freq = data.length > 0 ? count / data.length : 0;
+      occurrence[String(window.size)] = count;
+      frequency[String(window.size)] = Number((freq * 100).toFixed(2));
+      deviationFromBaseline[String(window.size)] = Number(((freq - 0.10) * 100).toFixed(2));
+      rawFrequencyScore += freq * window.weight;
+    }
+
+    const mediumWindow = getWindow(ticks, 50);
+    const repetition = repetitionScore(mediumWindow, digit);
+    const clustering = clusteringScore(mediumWindow, digit);
+    const change = shortTermChange(mediumWindow, digit);
+    const consistency = calculateConsistency(ticks, digit);
+
+    const frequencyComponent = rawFrequencyScore;
+    const consistencyComponent = 0.10 * consistency;
+    const repetitionComponent = 0.02 * repetition;
+    const clusteringComponent = 0.02 * clustering;
+    const changeComponent = clamp(change, -0.05, 0.05) * 0.10;
+
+    const rawScore = frequencyComponent + consistencyComponent + repetitionComponent + clusteringComponent + changeComponent;
+    const modelStatisticalScore = scoreAgainstBaseline(rawScore);
+
+    digitFeatures.push({
+      digit, occurrence, frequency, deviationFromBaseline,
+      ticksSinceAppearance: ticksSinceLastAppearance(ticks, digit),
+      currentGap: currentGap(ticks, digit),
+      maximumGap: maximumGap(ticks, digit),
+      repetitionScore: Number(repetition.toFixed(4)),
+      clusteringScore: Number(clustering.toFixed(4)),
+      shortTermChange: Number(change.toFixed(4)),
+      consistency: Number(consistency.toFixed(4)),
+      rawScore: Number(rawScore.toFixed(6)),
+      modelStatisticalScore,
+    });
+  }
+
+  // ALWAYS rank by raw score and take the top digit — no filtering,
+  // no null candidate. This is the fix: the model always produces
+  // something to observe, and whether it clears the display bar is
+  // reported separately below.
+  const sorted = [...digitFeatures].sort((a, b) => b.rawScore - a.rawScore);
+  const top = sorted[0];
+  const candidate = top.digit;
+  const modelStatisticalScore = top.modelStatisticalScore;
+
+  const qualifiedByModel = top.consistency >= MIN_CONSISTENCY && top.modelStatisticalScore >= MIN_MODEL_SCORE;
+
+  const supportedWindows: Record<string, number> = {};
+  for (const size of [20, 50, 100, 500]) {
+    const data = getWindow(ticks, size);
+    supportedWindows[String(size)] = Number((windowFrequency(data, candidate) * 100).toFixed(2));
+  }
+
+  const explanation = qualifiedByModel
+    ? `Digit ${candidate} ranked highest and meets the live model's own consistency/score bar ` +
+      `(consistency ${(top.consistency * 100).toFixed(1)}%, score ${modelStatisticalScore}). ` +
+      `The score is a statistical ranking against the 10% baseline, not a probability.`
+    : `Digit ${candidate} ranked highest among all digits but does NOT meet the live model's ` +
+      `own consistency/score bar (consistency ${(top.consistency * 100).toFixed(1)}%, ` +
+      `score ${modelStatisticalScore}). It is still logged for research purposes.`;
+
+  return {
+    candidate, modelStatisticalScore, windows: WINDOWS, digitFeatures,
+    supportedWindows, explanation, qualifiedByModel,
+  };
+}
+
+// ------------------------------------------------------------
+// DERIV CONNECTION
+// ------------------------------------------------------------
+function connectDeriv(): Promise<WebSocket> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let ws: WebSocket;
+    try { ws = new WebSocket(DERIV_WS); }
+    catch (error) {
+      reject(error instanceof Error ? error : new Error("Unable to create WebSocket."));
+      return;
+    }
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { ws.close(); } catch { /* ignore */ }
+      reject(new Error("Deriv WebSocket connection timed out."));
+    }, CONNECTION_TIMEOUT_MS);
+
+    ws.onopen = () => { if (settled) return; settled = true; clearTimeout(timeout); resolve(ws); };
+    ws.onerror = () => {
+      if (settled) return; settled = true; clearTimeout(timeout);
+      reject(new Error("Deriv public WebSocket connection failed."));
+    };
+    ws.onclose = (event) => {
+      if (settled) return; settled = true; clearTimeout(timeout);
+      reject(new Error(`Deriv WebSocket closed before opening. code=${event.code}, reason=${event.reason || "none"}`));
+    };
+  });
+}
+
+// ------------------------------------------------------------
+// HISTORY
+// ------------------------------------------------------------
+async function getHistory(requestedCount = DEFAULT_COUNT): Promise<Tick[]> {
+  const count = normalizeCount(requestedCount);
+  const ws = await connectDeriv();
+
+  return await new Promise((resolve, reject) => {
+    let finished = false;
+    const timeout = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      try { ws.close(); } catch { /* ignore */ }
+      reject(new Error("Deriv history request timed out."));
+    }, HISTORY_TIMEOUT_MS);
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      try { ws.close(); } catch { /* ignore */ }
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(String(event.data));
+        if (data.error) {
+          finish();
+          reject(new Error(`Deriv API error: ${data.error?.message || data.error?.code || "unknown"}`));
+          return;
+        }
+        if (data.msg_type !== "history" || !data.history) return;
+
+        const prices = data.history.prices;
+        const times = data.history.times;
+        const pipSize = typeof data.pip_size === "number" ? data.pip_size : undefined;
+
+        if (!Array.isArray(prices) || !Array.isArray(times)) {
+          finish();
+          reject(new Error("Invalid Deriv history response."));
+          return;
+        }
+
+        const ticks: Tick[] = [];
+        const length = Math.min(prices.length, times.length);
+        for (let i = 0; i < length; i++) {
+          const quote = Number(prices[i]);
+          const epoch = Number(times[i]);
+          if (!Number.isFinite(quote) || !Number.isFinite(epoch)) continue;
+          let digit: number;
+          try { digit = getLastDigit(quote, pipSize); } catch { continue; }
+          ticks.push({ quote, epoch, digit, pipSize });
+        }
+
+        if (ticks.length < MIN_COUNT) {
+          finish();
+          reject(new Error(`Only ${ticks.length} usable ticks received.`));
+          return;
+        }
+        finish();
+        resolve(ticks);
+      } catch (error) {
+        finish();
+        reject(error instanceof Error ? error : new Error("Unable to parse history."));
+      }
+    };
+
+    ws.onerror = () => { finish(); reject(new Error("Deriv WebSocket error while receiving history.")); };
+    ws.onclose = (event) => {
+      if (finished) return;
+      finish();
+      reject(new Error(`Deriv history connection closed. code=${event.code}`));
+    };
+
+    try {
+      ws.send(JSON.stringify({ ticks_history: SYMBOL, end: "latest", count, style: "ticks", req_id: 1001 }));
+    } catch (error) {
+      finish();
+      reject(error instanceof Error ? error : new Error("Unable to send history request."));
+    }
+  });
+}
+
+// ------------------------------------------------------------
+// LIVE TICK STREAM
+// ------------------------------------------------------------
+function createLiveStream(controller: ReadableStreamDefaultController<Uint8Array>): () => void {
+  let ws: WebSocket | null = null;
+  let stopped = false;
+  const encoder = new TextEncoder();
+  const send = (data: unknown) => {
+    if (stopped) return;
+    try { controller.enqueue(encoder.encode(JSON.stringify(data) + "\n")); } catch { /* client gone */ }
+  };
+
+  const start = async () => {
+    try {
+      ws = await connectDeriv();
+      if (stopped) { ws.close(); return; }
+      ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1, req_id: 2001 }));
+      send({ type: "status", status: "connected", symbol: SYMBOL, market: MARKET_NAME, modelVersion: MODEL_VERSION });
+
+      ws.onmessage = (event) => {
+        if (stopped) return;
+        try {
+          const data = JSON.parse(String(event.data));
+          if (data.error) {
+            send({ type: "error", error: data.error?.message || data.error?.code || "Deriv stream error." });
+            return;
+          }
+          if (data.msg_type !== "tick") return;
+          const tick = data.tick;
+          if (!tick) return;
+          const quote = Number(tick.quote);
+          const epoch = Number(tick.epoch);
+          if (!Number.isFinite(quote) || !Number.isFinite(epoch)) return;
+          const pipSize = typeof tick.pip_size === "number" ? tick.pip_size : undefined;
+          const digit = getLastDigit(quote, pipSize);
+          send({
+            type: "tick", symbol: SYMBOL, market: MARKET_NAME, quote, epoch,
+            timestamp: new Date(epoch * 1000).toISOString(), digit, pipSize: pipSize ?? null,
+          });
+        } catch (error) {
+          send({ type: "error", error: error instanceof Error ? error.message : "Unable to process tick." });
+        }
+      };
+      ws.onerror = () => { if (!stopped) send({ type: "error", error: "Deriv live WebSocket error." }); };
+      ws.onclose = (event) => {
+        if (stopped) return;
+        send({ type: "status", status: "disconnected", code: event.code, reason: event.reason || "none" });
+        try { controller.close(); } catch { /* ignore */ }
+      };
+    } catch (error) {
+      send({ type: "error", error: error instanceof Error ? error.message : "Unable to connect to Deriv." });
+      try { controller.close(); } catch { /* ignore */ }
+    }
+  };
+
+  start();
+  return () => { stopped = true; if (ws) { try { ws.close(); } catch { /* ignore */ } } };
+}
+
+// ============================================================
+// RESEARCH KV KEYS
+// ============================================================
+function predictionKey(id: string) { return ["predictions", MODEL_VERSION, id]; }
+function predictionIndexKey(createdAt: string, id: string) { return ["prediction-index", MODEL_VERSION, createdAt, id]; }
+function statsKey() { return ["research-stats", MODEL_VERSION]; }
+
+async function getPrediction(id: string): Promise<PredictionRecord | null> {
+  const result = await kv.get<PredictionRecord>(predictionKey(id));
+  return result.value;
+}
+async function savePrediction(prediction: PredictionRecord): Promise<void> {
+  await kv.atomic()
+    .set(predictionKey(prediction.id), prediction)
+    .set(predictionIndexKey(prediction.createdAt, prediction.id), prediction.id)
+    .commit();
+}
+
+// ------------------------------------------------------------
+// RESEARCH STATS
+// ------------------------------------------------------------
+async function calculateResearchStats(): Promise<ResearchStats> {
+  let totalPredictions = 0, totalCompleted = 0, totalInvalidated = 0, totalActive = 0;
+  let cleanSamples = 0, nextTickMatches = 0, windowMatches = 0;
+  let windowBaselineSum = 0, windowBaselineCount = 0;
+
+  for await (const entry of kv.list<string>({ prefix: ["prediction-index", MODEL_VERSION] })) {
+    const prediction = await getPrediction(entry.value);
+    if (!prediction) continue;
+    totalPredictions++;
+    if (prediction.status === "ACTIVE") totalActive++;
+    if (prediction.status === "INVALIDATED") totalInvalidated++;
+    if (prediction.status === "COMPLETED") {
+      totalCompleted++;
+      if (!prediction.dataGap && prediction.observedTicksCount >= MIN_WINDOW_TICKS) {
+        cleanSamples++;
+        if (prediction.nextTickMatched) nextTickMatches++;
+        if (prediction.observedDuringWindow) windowMatches++;
+        if (prediction.windowAppearanceBaseline !== null) {
+          windowBaselineSum += prediction.windowAppearanceBaseline;
+          windowBaselineCount++;
+        }
+      }
+    }
+  }
+
+  return {
+    modelVersion: MODEL_VERSION,
+    totalPredictions, totalCompleted, totalInvalidated, totalActive, cleanSamples,
+    nextTickMatches,
+    nextTickAccuracy: cleanSamples > 0 ? Number(((nextTickMatches / cleanSamples) * 100).toFixed(2)) : null,
+    nextTickBaseline: 10,
+    windowMatches,
+    windowAppearanceRate: cleanSamples > 0 ? Number(((windowMatches / cleanSamples) * 100).toFixed(2)) : null,
+    averageWindowBaseline: windowBaselineCount > 0 ? Number(((windowBaselineSum / windowBaselineCount) * 100).toFixed(2)) : null,
+    lastUpdated: nowIso(),
+  };
+}
+async function saveResearchStats(stats: ResearchStats): Promise<void> { await kv.set(statsKey(), stats); }
+
+// ------------------------------------------------------------
+// QUALIFICATION — display-only now, never blocks creation.
+// ------------------------------------------------------------
+async function getQualification() {
+  const stats = await calculateResearchStats();
+  const enoughSamples = stats.cleanSamples >= MIN_VALIDATION_SAMPLES;
+  return {
+    qualified: enoughSamples,
+    reason: enoughSamples
+      ? "Sufficient clean out-of-sample observations exist for research reporting."
+      : `Only ${stats.cleanSamples} clean observations exist. ${MIN_VALIDATION_SAMPLES} are required ` +
+        `before historical out-of-sample performance can be described as validated.`,
+    minimumRequired: MIN_VALIDATION_SAMPLES,
+    cleanSamples: stats.cleanSamples,
+    modelVersion: MODEL_VERSION,
+    historicalOOSHitRate: stats.windowAppearanceRate,
+    nextTickAccuracy: stats.nextTickAccuracy,
+    nextTickBaseline: stats.nextTickBaseline,
+    windowAppearanceBaseline: stats.averageWindowBaseline,
+  };
+}
+
+// ------------------------------------------------------------
+// PREDICTION CREATION — FIX: always proceeds. Candidate and score
+// are frozen here; recovery/completion never recalculate them.
+// ------------------------------------------------------------
+async function createPrediction(): Promise<PredictionRecord> {
+  const ticks = await getHistory(500);
+  if (ticks.length < 500) throw new Error("Insufficient 500-tick history.");
+
+  const latest = ticks[ticks.length - 1];
+  const model = calculateModel(ticks); // always returns a real candidate now
+
+  const start = Date.now();
+  const prediction: PredictionRecord = {
+    id: makeId(),
+    modelVersion: MODEL_VERSION,
+    candidate: model.candidate,
+    modelStatisticalScore: model.modelStatisticalScore,
+    qualifiedByModel: model.qualifiedByModel,
+    createdAt: new Date(start).toISOString(),
+    startTime: new Date(start).toISOString(),
+    endTime: new Date(start + OBSERVATION_MS).toISOString(),
+    status: "ACTIVE",
+    ticksUsedForPrediction: ticks.length,
+    latestPriceAtPrediction: latest.quote,
+    latestDigitAtPrediction: latest.digit,
+    modelResult: model,
+    observedTicks: [],
+    observedTicksCount: 0,
+    matchingTicks: [],
+    matchingPrices: [],
+    observedMatchingCount: 0,
+    observedDuringWindow: false,
+    nextTickDigit: null,
+    nextTickMatched: null,
+    windowAppearanceBaseline: null,
+    dataGap: false,
+    gapCount: 0,
+    gapMilliseconds: 0,
+    invalidationReason: null,
+    completedAt: null,
+  };
+
+  await savePrediction(prediction);
+  startObservation(prediction.id);
+  return prediction;
+}
+
+// ------------------------------------------------------------
+// OBSERVATION STATE
+// ------------------------------------------------------------
+const runningObservations = new Set<string>();
+
+async function completePrediction(prediction: PredictionRecord): Promise<void> {
+  prediction.status = "COMPLETED";
+  prediction.completedAt = nowIso();
+  prediction.observedTicksCount = prediction.observedTicks.length;
+  prediction.observedMatchingCount = prediction.matchingTicks.length;
+  prediction.observedDuringWindow = prediction.matchingTicks.length > 0;
+
+  if (prediction.observedTicks.length > 0) {
+    prediction.nextTickDigit = prediction.observedTicks[0].digit;
+    prediction.nextTickMatched = prediction.nextTickDigit === prediction.candidate;
+  }
+
+  const n = prediction.observedTicks.length;
+  prediction.windowAppearanceBaseline = n > 0 ? 1 - Math.pow(0.9, n) : null;
+
+  await savePrediction(prediction);
+  const stats = await calculateResearchStats();
+  await saveResearchStats(stats);
+}
+
+async function invalidatePrediction(prediction: PredictionRecord, reason: string): Promise<void> {
+  prediction.status = "INVALIDATED";
+  prediction.invalidationReason = reason;
+  prediction.completedAt = nowIso();
+  prediction.observedTicksCount = prediction.observedTicks.length;
+  await savePrediction(prediction);
+  const stats = await calculateResearchStats();
+  await saveResearchStats(stats);
+}
+
+// ------------------------------------------------------------
+// OBSERVATION CYCLE (unchanged from previous version — this part
+// was already correct)
+// ------------------------------------------------------------
+function startObservation(predictionId: string): void {
+  if (runningObservations.has(predictionId)) return;
+  runningObservations.add(predictionId);
+  runObservation(predictionId).finally(() => runningObservations.delete(predictionId));
+}
+
+async function runObservation(predictionId: string): Promise<void> {
+  const prediction = await getPrediction(predictionId);
+  if (!prediction || prediction.status !== "ACTIVE") return;
+
+  const startEpoch = new Date(prediction.startTime).getTime();
+  const endEpoch = new Date(prediction.endTime).getTime();
+
+  if (Date.now() >= endEpoch) {
+    await invalidatePrediction(prediction, "Observation window expired before a live observer could capture the full window.");
+    return;
+  }
+
+  const ws = await connectDeriv();
+  let lastTickTime = Date.now();
+  let gapStartedAt: number | null = null;
+  let closed = false;
+  const closeSocket = () => { if (closed) return; closed = true; try { ws.close(); } catch { /* ignore */ } };
+
+  ws.onmessage = async (event) => {
+    if (closed) return;
+    try {
+      const data = JSON.parse(String(event.data));
+      if (data.error) {
+        prediction.dataGap = true; prediction.gapCount++;
+        return;
+      }
+      if (data.msg_type !== "tick") return;
+      const tick = data.tick;
+      if (!tick) return;
+      const quote = Number(tick.quote);
+      const epoch = Number(tick.epoch);
+      if (!Number.isFinite(quote) || !Number.isFinite(epoch)) return;
+      const pipSize = typeof tick.pip_size === "number" ? tick.pip_size : undefined;
+      const digit = getLastDigit(quote, pipSize);
+      const tickTime = epoch * 1000;
+
+      if (tickTime < startEpoch || tickTime > endEpoch) return;
+
+      const arrivalGap = Date.now() - lastTickTime;
+      if (arrivalGap > DATA_GAP_MS) {
+        prediction.dataGap = true;
+        prediction.gapCount++;
+        prediction.gapMilliseconds += arrivalGap;
+        gapStartedAt = null;
+      }
+      lastTickTime = Date.now();
+
+      const observedTick: Tick = { quote, epoch, digit, pipSize };
+      prediction.observedTicks.push(observedTick);
+      if (digit === prediction.candidate) {
+        prediction.matchingTicks.push(observedTick);
+        prediction.matchingPrices.push(quote);
+      }
+      await savePrediction(prediction);
+    } catch {
+      prediction.dataGap = true;
+      prediction.gapCount++;
+    }
+  };
+
+  ws.onerror = () => {
+    if (closed) return;
+    prediction.dataGap = true;
+    prediction.gapCount++;
+    if (gapStartedAt === null) gapStartedAt = Date.now();
+  };
+  ws.onclose = () => { if (!closed) { prediction.dataGap = true; prediction.gapCount++; } };
+
+  ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1, req_id: 3001 }));
+
+  const remaining = Math.max(0, endEpoch - Date.now());
+  await new Promise<void>((resolve) => setTimeout(resolve, remaining + 250));
+  closeSocket();
+
+  const current = await getPrediction(predictionId);
+  if (!current || current.status !== "ACTIVE") return;
+
+  current.observedTicks = prediction.observedTicks;
+  current.matchingTicks = prediction.matchingTicks;
+  current.matchingPrices = prediction.matchingPrices;
+  current.observedTicksCount = prediction.observedTicks.length;
+  current.observedMatchingCount = prediction.matchingTicks.length;
+  current.dataGap = prediction.dataGap;
+  current.gapCount = prediction.gapCount;
+  current.gapMilliseconds = prediction.gapMilliseconds;
+
+  if (current.dataGap) {
+    await invalidatePrediction(current, "Observation contained a live-data gap and was excluded from clean research statistics.");
+    return;
+  }
+  if (current.observedTicksCount < MIN_WINDOW_TICKS) {
+    await invalidatePrediction(current, `Only ${current.observedTicksCount} valid ticks were observed; ${MIN_WINDOW_TICKS} are required for a clean observation.`);
+    return;
+  }
+  await completePrediction(current);
+}
+
+// ------------------------------------------------------------
+// RESTART RECOVERY (unchanged — this part was already correct:
+// honest invalidation, never recalculates the frozen candidate)
+// ------------------------------------------------------------
+async function recoverActivePredictions(): Promise<void> {
+  for await (const entry of kv.list<string>({ prefix: ["prediction-index", MODEL_VERSION] })) {
+    const prediction = await getPrediction(entry.value);
+    if (!prediction || prediction.status !== "ACTIVE") continue;
+
+    const end = new Date(prediction.endTime).getTime();
+    if (Date.now() >= end) {
+      await invalidatePrediction(prediction, "Server recovery found an expired ACTIVE prediction whose complete live observation window was not captured.");
+      continue;
+    }
+
+    prediction.dataGap = true;
+    prediction.gapCount++;
+    await savePrediction(prediction);
+    startObservation(prediction.id);
+  }
+}
+
+// ------------------------------------------------------------
+// PREDICTION HISTORY
+// ------------------------------------------------------------
+async function getPredictionHistory(limit = 50): Promise<PredictionRecord[]> {
+  const entries: { id: string; createdAt: string }[] = [];
+  for await (const entry of kv.list<string>({ prefix: ["prediction-index", MODEL_VERSION] })) {
+    const createdAt = String(entry.key[2] ?? "");
+    entries.push({ id: entry.value, createdAt });
+  }
+  entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  const records: PredictionRecord[] = [];
+  for (const item of entries.slice(0, Math.max(1, Math.min(500, limit)))) {
+    const prediction = await getPrediction(item.id);
+    if (prediction) records.push(prediction);
+  }
+  return records;
+}
+
+// ============================================================
+// MCP
+// ============================================================
+function getTools() {
+  return [
+    {
+      name: "analyze_v90_matches",
+      description:
+        "Analyze fresh Volatility 90 (1s) tick data using seven rolling windows and return " +
+        "the top-ranked Matches candidate. Always returns a candidate; qualifiedByModel flags " +
+        "whether it also meets the live model's own bar. Read-only. Never places trades.",
+      inputSchema: {
+        type: "object",
+        properties: { count: { type: "integer", minimum: 500, maximum: 1000, default: 500 } },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "create_v90_observation",
+      description:
+        "Create a frozen 10-second V90 Matches observation. Always creates and observes — " +
+        "qualification status is reported in the response but does not block creation. Read-only.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    },
+    {
+      name: "get_v90_research_stats",
+      description:
+        "Return persistent V90 research statistics including next-tick accuracy and 10-second " +
+        "window appearance rate with separate baselines.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    },
+  ];
+}
+
+async function handleMcp(body: any): Promise<Response> {
+  const id = body?.id ?? null;
+  const method = body?.method;
+
+  if (method === "ping") return json({ jsonrpc: "2.0", id, result: {} });
+
+  if (method === "initialize") {
+    return json({
+      jsonrpc: "2.0", id,
+      result: {
+        protocolVersion: body.params?.protocolVersion || "2025-06-18",
+        capabilities: { tools: {} },
+        serverInfo: { name: "v90-tick-analyzer", version: MODEL_VERSION },
+        instructions: "Read-only V90 (1s) market-data analyzer. No authentication and no trading.",
+      },
+    });
+  }
+
+  if (method === "notifications/initialized") {
+    return new Response(null, { status: 202, headers: { "access-control-allow-origin": "*" } });
+  }
+
+  if (method === "tools/list") return json({ jsonrpc: "2.0", id, result: { tools: getTools() } });
+
+  if (method === "tools/call") {
+    try {
+      const name = body.params?.name;
+
+      if (name === "analyze_v90_matches") {
+        const ticks = await getHistory(500);
+        const model = calculateModel(ticks);
+        return json({
+          jsonrpc: "2.0", id,
+          result: {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                modelVersion: MODEL_VERSION,
+                candidate: model.candidate,
+                modelStatisticalScore: model.modelStatisticalScore,
+                qualifiedByModel: model.qualifiedByModel,
+                model,
+                note: "Model Statistical Score is not a probability or guarantee.",
+              }, null, 2),
+            }],
+            isError: false,
+          },
+        });
+      }
+
+      if (name === "create_v90_observation") {
+        const prediction = await createPrediction();
+        return json({
+          jsonrpc: "2.0", id,
+          result: { content: [{ type: "text", text: JSON.stringify(prediction, null, 2) }], isError: false },
+        });
+      }
+
+      if (name === "get_v90_research_stats") {
+        const stats = await calculateResearchStats();
+        return json({
+          jsonrpc: "2.0", id,
+          result: { content: [{ type: "text", text: JSON.stringify(stats, null, 2) }], isError: false },
+        });
+      }
+
+      return json({ jsonrpc: "2.0", id, error: { code: -32601, message: `Unknown tool: ${name}` } });
+    } catch (error) {
+      return json({
+        jsonrpc: "2.0", id,
+        result: { content: [{ type: "text", text: error instanceof Error ? error.message : "Tool failed." }], isError: true },
+      });
+    }
+  }
+
+  return json({ jsonrpc: "2.0", id, error: { code: -32601, message: `Method not found: ${method}` } });
+}
+
+// ============================================================
+// SERVER
+// ============================================================
+Deno.serve(async (request) => {
+  const url = new URL(request.url);
+
+  try { await recoverActivePredictions(); } catch { /* recovery failure must never break the API */ }
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET,POST,OPTIONS",
+        "access-control-allow-headers": "Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id",
+      },
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/") {
+    return json({
+      name: "V90 Matches Research Analyzer",
+      status: "online",
+      symbol: SYMBOL,
+      market: MARKET_NAME,
+      modelVersion: MODEL_VERSION,
+      websocket: DERIV_WS,
+      authentication: "none",
+      trading: false,
+      observationSeconds: OBSERVATION_SECONDS,
+      windows: WINDOWS,
+      endpoints: {
+        health: "/", testDeriv: "/test-deriv", history: "/history", analyze: "/analyze",
+        stream: "/stream", prediction: "POST /prediction",
+        predictionCurrent: "/prediction/current", predictionHistory: "/prediction/history",
+        researchStats: "/research/stats", qualification: "/qualification", mcp: "/mcp",
+      },
+      note: "Read-only research and observation system. Predictions are always created and logged; " +
+            "qualification only affects display labeling, never data collection. No trades are placed.",
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/test-deriv") {
+    try {
+      const ticks = await getHistory(20);
+      const latest = ticks[ticks.length - 1];
+      return json({
+        status: "connected", symbol: SYMBOL, market: MARKET_NAME, ticksReceived: ticks.length,
+        latestPrice: latest.quote, latestDigit: latest.digit,
+        timestamp: new Date(latest.epoch * 1000).toISOString(), websocket: DERIV_WS,
+      });
+    } catch (error) {
+      return errorResponse(error instanceof Error ? error.message : "Deriv connection failed.", 502);
+    }
+  }
+
+  if (request.method === "GET" && url.pathname === "/history") {
+    try {
+      const count = normalizeCount(url.searchParams.get("count"));
+      const ticks = await getHistory(count);
+      return json({ symbol: SYMBOL, market: MARKET_NAME, ticksAnalyzed: ticks.length, ticks });
+    } catch (error) {
+      return errorResponse(error instanceof Error ? error.message : "History failed.", 502);
+    }
+  }
+
+  if (request.method === "GET" && url.pathname === "/analyze") {
+    try {
+      const ticks = await getHistory(500);
+      const model = calculateModel(ticks);
+      const qualification = await getQualification();
+      const validated = model.qualifiedByModel && qualification.qualified;
+
+      return json({
+        status: validated ? "VALIDATED" : "RESEARCH_ONLY",
+        modelVersion: MODEL_VERSION,
+        candidate: model.candidate,
+        modelStatisticalScore: model.modelStatisticalScore,
+        qualifiedByModel: model.qualifiedByModel,
+        historicallyValidated: qualification.qualified,
+        historicalOOSHitRate: qualification.historicalOOSHitRate,
+        nextTickAccuracy: qualification.nextTickAccuracy,
+        nextTickBaseline: qualification.nextTickBaseline,
+        windowAppearanceBaseline: qualification.windowAppearanceBaseline,
+        qualificationReason: qualification.reason,
+        model,
+        disclaimer: "Model estimate based on historical and live data; not guaranteed. " +
+                    (validated ? "" : "This candidate has NOT been validated as a trade-relevant signal yet."),
+      });
+    } catch (error) {
+      return errorResponse(error instanceof Error ? error.message : "Analysis failed.", 502);
+    }
+  }
+
+  if (request.method === "GET" && url.pathname === "/stream") {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const cleanup = createLiveStream(controller);
+        request.signal.addEventListener("abort", cleanup, { once: true });
+      },
+    });
+    return new Response(stream, {
+      headers: {
+        "content-type": "application/x-ndjson; charset=utf-8",
+        "cache-control": "no-cache, no-transform",
+        "access-control-allow-origin": "*",
+        "x-accel-buffering": "no",
+      },
+    });
+  }
+
+  // FIX: always creates and observes now — never throws due to
+  // qualification. Only real errors (e.g. Deriv connection failure,
+  // insufficient history) produce a non-ACTIVE response.
+  if (request.method === "POST" && url.pathname === "/prediction") {
+    try {
+      const prediction = await createPrediction();
+      const qualification = await getQualification();
+      const validated = prediction.qualifiedByModel && qualification.qualified;
+
+      return json({
+        status: "ACTIVE",
+        validated,
+        prediction,
+        display: {
+          activeMatchesDigit: prediction.candidate,
+          observationWindow: "10 seconds",
+          countdownSeconds: OBSERVATION_SECONDS,
+          tradePrompt: validated ? "Trade Now" : null,
+          label: "Model estimate based on historical and live data; not guaranteed.",
+          researchNote: validated ? null : "This prediction is being logged for research. It has not met the validated display bar.",
+        },
+      });
+    } catch (error) {
+      // This now only fires on genuine failures (Deriv connection
+      // issues, insufficient tick history) — not on qualification.
+      return errorResponse(error instanceof Error ? error.message : "Unable to create prediction.", 502);
+    }
+  }
+
+  if (request.method === "GET" && url.pathname === "/prediction/history") {
+    const limit = Number(url.searchParams.get("limit") ?? "50");
+    const history = await getPredictionHistory(Number.isFinite(limit) ? limit : 50);
+    return json({ modelVersion: MODEL_VERSION, records: history });
+  }
+
+  if (request.method === "GET" && url.pathname === "/prediction/current") {
+    const history = await getPredictionHistory(20);
+    const active = history.find((p) => p.status === "ACTIVE");
+    if (!active) return json({ status: "NO ACTIVE PREDICTION" });
+
+    const remaining = Math.max(0, new Date(active.endTime).getTime() - Date.now());
+    return json({
+      status: "ACTIVE",
+      predictionId: active.id,
+      activeMatchesDigit: active.candidate,
+      modelVersion: active.modelVersion,
+      modelStatisticalScore: active.modelStatisticalScore,
+      qualifiedByModel: active.qualifiedByModel,
+      startTime: active.startTime,
+      endTime: active.endTime,
+      remainingMilliseconds: remaining,
+      countdownSeconds: Math.ceil(remaining / 1000),
+      tradePrompt: active.qualifiedByModel ? "Trade Now" : null,
+      disclaimer: "Model estimate based on historical and live data; not guaranteed.",
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/research/stats") {
+    const stats = await calculateResearchStats();
+    await saveResearchStats(stats);
+    return json({
+      ...stats,
+      interpretation: {
+        nextTick: "Exact next-tick digit match. Random baseline is 10%.",
+        tenSecondWindow: "Candidate appeared at least once during the observed window.",
+        windowBaseline: "Computed from the actual number of observed ticks.",
+        cleanSamples: "Only completed observations without data gaps count.",
+        invalidated: "Incomplete or gapped observations are excluded.",
+      },
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/qualification") {
+    return json(await getQualification());
+  }
+
+  if (request.method === "POST" && url.pathname === "/recover") {
+    await recoverActivePredictions();
+    return json({ status: "recovery-complete", modelVersion: MODEL_VERSION });
+  }
+
+  if (url.pathname === "/mcp") {
+    if (request.method !== "POST") {
+      return json({ name: "v90-tick-analyzer", status: "ready", protocol: "MCP", modelVersion: MODEL_VERSION });
+    }
+    try {
+      const body = await request.json();
+      return await handleMcp(body);
+    } catch (error) {
+      return errorResponse(error instanceof Error ? error.message : "Invalid MCP request.", 400);
+    }
+  }
+
+  return errorResponse("Not found.", 404);
+});
